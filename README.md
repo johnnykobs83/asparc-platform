@@ -1,7 +1,7 @@
 # ASPARC Platform – Phase 1
 
 **ASPARC – Australian Sports Performance and Rehabilitation Centre** · www.asparc.com.au
-*PERFORMANCE STARTS HERE.*
+*HIGH PERFORMANCE STARTS HERE.*
 
 Website, AI receptionist ("ASPARC AI – Your Performance Assistant"), lead management, notifications and a secure management dashboard, in one Next.js application.
 
