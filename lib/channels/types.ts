@@ -16,4 +16,6 @@ export interface ChannelAdapter {
   /** Converts rich actions (forms, buttons) into something the channel supports. */
   renderActions(actions: ChatAction[]): string;
   send(recipient: string, text: string): Promise<{ ok: boolean; error?: string }>;
+  /** Optional: send text with tappable choices (buttons / quick replies). Falls back to plain text when unsupported. */
+  sendWithOptions?(recipient: string, text: string, options: string[]): Promise<{ ok: boolean; error?: string }>;
 }

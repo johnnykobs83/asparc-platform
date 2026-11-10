@@ -29,13 +29,19 @@
 3. Test from your own phone: greeting/AI disclosure, Academy question, medical redirect, emergency → 000, complaint escalation. Confirm the conversation appears in **Conversations** with channel *WhatsApp*.
 4. Only then add the number to the website and socials.
 
-## Development work remaining for Phase 2 (estimate: 1–2 days)
+## Built since Phase 1 (still inactive until switched on)
 
-- Reply with WhatsApp interactive buttons instead of text quick replies.
-- Opt-out handling ("STOP") stored against the conversation.
-- Approved **template messages** if ASPARC ever needs to message first (follow-ups, reminders). These need Meta approval and explicit opt-in, and are deliberately not built yet.
+- **Reply buttons:** quick replies are sent as WhatsApp reply buttons when they fit Meta's limits (at most 3 buttons, 20 characters each); otherwise as plain text. A tap on a button is read as a normal message.
+- **Opt-out:** "STOP" (also "unsubscribe", "opt out") silences ASPARC AI for that person and is stored on the conversation. "START" turns replies back on.
+- **Redelivery protection:** Meta resends webhooks; each message id is processed once.
+- Shared inbound flow in `lib/channels/inbound.ts`, used by WhatsApp, Messenger and Instagram.
+
+## Development work remaining for Phase 2
+
+- Approved **template messages** if ASPARC ever needs to message first (follow-ups, reminders). These need Meta approval and explicit opt-in, and are deliberately not built.
 - Optional: staff replies from the dashboard (hand-over from AI to a person within the 24-hour window).
 - Integrations page: switch the WhatsApp card from "Prepared" to live status checks.
+- A live end-to-end test against Meta. Everything above is covered by automated tests with a mocked Meta API only.
 
 ## Phase 3 preview (Instagram & Messenger)
 

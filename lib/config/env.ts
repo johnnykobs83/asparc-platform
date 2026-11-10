@@ -114,6 +114,10 @@ export const env = {
   get metaPageToken() {
     return read('META_PAGE_ACCESS_TOKEN');
   },
+  /** Webhook verify token for Messenger/Instagram. Falls back to the WhatsApp one so a single Meta app can share it. */
+  get metaVerifyToken() {
+    return read('META_VERIFY_TOKEN') || read('WHATSAPP_VERIFY_TOKEN');
+  },
   get stripeKey() {
     return read('STRIPE_SECRET_KEY');
   },
