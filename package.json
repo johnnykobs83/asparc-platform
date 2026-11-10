@@ -1,0 +1,36 @@
+{
+  "name": "asparc-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ASPARC \u2013 Australian Sports Performance and Rehabilitation Centre: website, AI receptionist and management dashboard",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "db:types": "echo 'Optional: supabase gen types typescript --project-id <id> > lib/db/supabase-generated.ts'",
+    "admin:create": "node --env-file=.env.local --import tsx scripts/create-admin.ts",
+    "hubspot:setup": "node --env-file=.env.local --import tsx scripts/hubspot-setup.ts",
+    "summary:run": "node --env-file=.env.local --import tsx scripts/run-daily-summary.ts",
+    "test:db": "bash scripts/test-migrations.sh"
+  },
+  "dependencies": {
+    "next": "^15.5.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "tailwindcss": "^4.1.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}

@@ -1,0 +1,10 @@
+import type { Metadata } from 'next';
+import { RehabilitationView } from '@/components/site/views/ServicePages';
+import { getPublicSiteData } from '@/lib/kb/service';
+
+export const revalidate = 60;
+export const metadata: Metadata = { title: 'Rehabilitation', description: 'Exercise-based return-to-performance training, delivered alongside your treating practitioner.' };
+
+export default async function Page() {
+  return <RehabilitationView site={await getPublicSiteData()} />;
+}
