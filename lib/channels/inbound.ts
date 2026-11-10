@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { handleChatMessage } from '../ai/receptionist';
+import { checkInbound } from '../ai/guardrails';
 import type { ChatAction } from '../ai/types';
 import { env } from '../config/env';
 import { db } from '../db';
@@ -47,7 +48,9 @@ export interface InboundMessage {
   messageId?: string;
 }
 
-export type InboundOutcome = 'replied' | 'opted_out' | 'opted_in' | 'silent' | 'duplicate';
+export type InboundOutcome = 'replied' | 'opted_out' | 'opted_in' | 'silent' | 'duplicate' | 'handed_to_staff';
+
+export const STAFF_WAITING_REASON = 'Customer replied – a staff member is handling this conversation';
 
 export async function handleInboundMessage(adapter: ChannelAdapter, msg: InboundMessage): Promise<InboundOutcome> {
   const repo = db();
@@ -58,10 +61,11 @@ export async function handleInboundMessage(adapter: ChannelAdapter, msg: Inbound
 
   // Most recent conversation for this person on this channel (open or escalated).
   const recent = (await repo.list('conversations', { eq: { channel, visitor_id: visitorId }, limit: 1 }))[0] ?? null;
-  const state = (recent?.state ?? {}) as { opted_out?: boolean; last_message_id?: string };
+  const state = (recent?.state ?? {}) as { opted_out?: boolean; last_message_id?: string; human_takeover?: boolean };
 
   if (msg.messageId && state.last_message_id === msg.messageId) return 'duplicate';
-  const stamp = msg.messageId ? { last_message_id: msg.messageId } : {};
+  // reply_to + last_inbound_at let staff reply from the dashboard inside the platform's 24-hour window.
+  const stamp = { ...(msg.messageId ? { last_message_id: msg.messageId } : {}), reply_to: msg.from, last_inbound_at: new Date().toISOString() };
 
   if (STOP_WORDS.test(text)) {
     const conversation = recent ?? (await repo.insert('conversations', { channel, visitor_id: visitorId, status: 'open', state: {} }));
@@ -72,7 +76,7 @@ export async function handleInboundMessage(adapter: ChannelAdapter, msg: Inbound
 
   if (state.opted_out) {
     if (!START_WORDS.test(text)) {
-      if (recent && msg.messageId) await repo.update('conversations', recent.id, { state: { ...state, ...stamp } });
+      if (recent && msg.messageId) await repo.update('conversations', recent.id, { state: { ...state, last_message_id: msg.messageId } });
       return 'silent';
     }
     if (recent) await repo.update('conversations', recent.id, { state: { ...state, ...stamp, opted_out: false } });
@@ -80,13 +84,26 @@ export async function handleInboundMessage(adapter: ChannelAdapter, msg: Inbound
     return 'opted_in';
   }
 
+  // A staff member has taken over: record the message for them and keep the AI out of it.
+  // Safety exception: emergencies and self-harm messages always get the immediate 000 / Lifeline reply.
+  const urgent = checkInbound(text);
+  if (recent && state.human_takeover && recent.status !== 'closed' && !urgent.emergency && !urgent.selfHarm) {
+    await repo.insert('messages', { conversation_id: recent.id, role: 'user', content: checkInbound(text).sanitized.slice(0, 8000), tool_name: null, metadata: {} });
+    await repo.update('conversations', recent.id, {
+      state: { ...state, ...stamp },
+      message_count: recent.message_count + 1,
+      last_message_at: stamp.last_inbound_at,
+      needs_attention: true,
+      attention_reason: STAFF_WAITING_REASON,
+    });
+    return 'handed_to_staff';
+  }
+
   const open = recent && recent.status === 'open' ? recent : null;
   const reply = await handleChatMessage({ channel, visitorId, conversationId: open?.id, message: text });
 
-  if (msg.messageId) {
-    const current = await repo.get('conversations', reply.conversationId);
-    if (current) await repo.update('conversations', current.id, { state: { ...(current.state ?? {}), ...stamp } });
-  }
+  const current = await repo.get('conversations', reply.conversationId);
+  if (current) await repo.update('conversations', current.id, { state: { ...(current.state ?? {}), ...stamp } });
 
   const { options, rest } = splitActions(reply.actions);
   const extra = adapter.renderActions(rest);

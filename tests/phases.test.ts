@@ -4,13 +4,16 @@ import { beforeEach, describe, it } from 'node:test';
 import { GET as metaGET, POST as metaPOST } from '../app/api/webhooks/meta/route';
 import { POST as stripePOST } from '../app/api/webhooks/stripe/route';
 import { POST as waPOST } from '../app/api/webhooks/whatsapp/route';
+import { PATCH as convoPATCH } from '../app/api/admin/conversations/[id]/route';
+import { POST as replyPOST } from '../app/api/admin/conversations/[id]/reply/route';
 import { GET as revenueGET } from '../app/api/admin/revenue/route';
 import { OPT_IN_REPLY, OPT_OUT_REPLY } from '../lib/channels/inbound';
 import { chunkText } from '../lib/channels/messenger';
 import { db } from '../lib/db';
 import { integrationStatuses } from '../lib/config/env';
 import { verifyStripeSignature } from '../lib/integrations/stripe';
-import { adminCookie, freshDb, mockFetch, req, type FetchCall } from './helpers';
+import { REPLY_WINDOW_MS, sendStaffReply } from '../lib/channels/handover';
+import { adminCookie, ctx, freshDb, mockFetch, req, type FetchCall } from './helpers';
 
 const raw = (path: string, body: string, headers: Record<string, string>) =>
   new Request(`http://localhost${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', host: 'localhost', ...headers }, body });
@@ -270,5 +273,91 @@ describe('Integration status for later phases', () => {
     assert.equal(stateOf('stripe').state, 'connected');
     assert.equal(stateOf('cliniko').state, 'not_started');
     assert.deepEqual(stateOf('stripe').missing, []);
+  });
+});
+
+describe('Hand-over – staff replies from the dashboard', () => {
+  beforeEach(() => freshDb(WA_ENV));
+  const convo = async () => (await db().list('conversations'))[0];
+  const reply = async (id: string, message: string, role: 'owner' | 'manager' | 'staff' = 'staff') =>
+    replyPOST(req(`/api/admin/conversations/${id}/reply`, { body: { message }, cookie: await adminCookie(role) }), ctx(id));
+
+  it('requires a signed-in admin', async () => {
+    graph();
+    await waPOST(waReq(waText('hello', 'm1')));
+    const id = (await convo()).id;
+    assert.equal((await replyPOST(req(`/api/admin/conversations/${id}/reply`, { body: { message: 'hi' } }), ctx(id))).status, 401);
+  });
+
+  it('sends the reply to the customer, labels it as staff and pauses the AI', async () => {
+    const calls = graph();
+    await waPOST(waReq(waText('Can someone call me about the Academy?', 'm1')));
+    const id = (await convo()).id;
+    const r = await reply(id, 'Hi, this is Sam from ASPARC – happy to help.');
+    assert.equal(r.status, 201);
+    assert.equal(sentText(calls[1]), 'Hi, this is Sam from ASPARC – happy to help.');
+    assert.equal((calls[1].body as { to: string }).to, '61400000000');
+    const msgs = await db().list('messages', { eq: { conversation_id: id }, orderBy: 'created_at', ascending: true });
+    assert.equal((msgs[msgs.length - 1].metadata as { staff?: string }).staff, 'staff@asparc.test');
+
+    // the customer's next message goes to staff, not the AI
+    await waPOST(waReq(waText('Thanks, tomorrow morning works', 'm2')));
+    assert.equal(calls.length, 2, 'AI stayed silent');
+    const c = await convo();
+    assert.equal(c.needs_attention, true);
+    assert.match(c.attention_reason ?? '', /staff member is handling/);
+    assert.equal((await db().list('conversations')).length, 1);
+  });
+
+  it('still answers emergencies with 000 while staff are handling the chat', async () => {
+    const calls = graph();
+    await waPOST(waReq(waText('hello', 'm1')));
+    await reply((await convo()).id, 'Hi from the team');
+    await waPOST(waReq(waText("My son collapsed and can't breathe", 'm2')));
+    assert.equal(calls.length, 3);
+    assert.match(sentText(calls[2]), /000/);
+  });
+
+  it('handing back lets ASPARC AI answer again', async () => {
+    const calls = graph();
+    await waPOST(waReq(waText('hello', 'm1')));
+    const id = (await convo()).id;
+    await reply(id, 'Hi from the team');
+    const back = await convoPATCH(req(`/api/admin/conversations/${id}`, { method: 'PATCH', body: { human_takeover: false }, cookie: await adminCookie('staff') }), ctx(id));
+    assert.equal(back.status, 200);
+    await waPOST(waReq(waText('What are your massage prices?', 'm2')));
+    assert.equal(calls.length, 3);
+  });
+
+  it('refuses outside the 24-hour window, after STOP, and for website chats', async () => {
+    const calls = graph();
+    await waPOST(waReq(waText('hello', 'm1')));
+    const id = (await convo()).id;
+    const late = await sendStaffReply(id, 'too late', 'staff@asparc.test', Date.now() + REPLY_WINDOW_MS + 60_000);
+    assert.equal(late.ok, false);
+    assert.match(late.ok ? '' : late.error, /24-hour/);
+
+    await waPOST(waReq(waText('STOP', 'm2')));
+    const n = calls.length;
+    const stopped = await reply(id, 'hello again');
+    assert.equal(stopped.status, 422);
+    assert.match((await stopped.json()).error, /opted out/);
+
+    const web = await db().insert('conversations', { channel: 'website', visitor_id: 'visitor_web_1', status: 'open', state: {} });
+    assert.equal((await reply(web.id, 'hi')).status, 422);
+    assert.equal(calls.length, n, 'nothing was sent');
+    assert.equal((await reply('00000000-0000-4000-8000-000000000000', 'hi')).status, 404);
+  });
+
+  it('reports a failed send instead of pretending it was delivered', async () => {
+    graph();
+    await waPOST(waReq(waText('hello', 'm1')));
+    const id = (await convo()).id;
+    mockFetch([[/POST https:\/\/graph\.facebook\.com\//, () => ({ status: 500, body: { error: 'down' } })]]);
+    const r = await reply(id, 'are you there?');
+    assert.equal(r.status, 502);
+    const msgs = await db().list('messages', { eq: { conversation_id: id } });
+    assert.ok(!msgs.some((m) => m.content === 'are you there?'));
+    assert.notEqual(((await convo()).state as { human_takeover?: boolean }).human_takeover, true);
   });
 });

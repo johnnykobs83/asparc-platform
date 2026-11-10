@@ -34,13 +34,13 @@
 - **Reply buttons:** quick replies are sent as WhatsApp reply buttons when they fit Meta's limits (at most 3 buttons, 20 characters each); otherwise as plain text. A tap on a button is read as a normal message.
 - **Opt-out:** "STOP" (also "unsubscribe", "opt out") silences ASPARC AI for that person and is stored on the conversation. "START" turns replies back on.
 - **Redelivery protection:** Meta resends webhooks; each message id is processed once.
+- **Staff replies (hand-over):** in **Conversations**, staff can reply to a WhatsApp, Messenger or Instagram chat. Replying pauses ASPARC AI for that chat until staff click *Hand back to ASPARC AI*; emergency and self-harm messages still get the immediate 000 / Lifeline reply. Replies are only possible within 24 hours of the customer's last message and never after STOP. To make this possible the customer's messaging address (phone number or platform id) is kept on the conversation record.
+- **Integrations page:** shows WhatsApp, Messenger/Instagram and Stripe as prepared, partially configured (listing what is missing) or connected.
 - Shared inbound flow in `lib/channels/inbound.ts`, used by WhatsApp, Messenger and Instagram.
 
 ## Development work remaining for Phase 2
 
 - Approved **template messages** if ASPARC ever needs to message first (follow-ups, reminders). These need Meta approval and explicit opt-in, and are deliberately not built.
-- Optional: staff replies from the dashboard (hand-over from AI to a person within the 24-hour window).
-- Integrations page: switch the WhatsApp card from "Prepared" to live status checks.
 - A live end-to-end test against Meta. Everything above is covered by automated tests with a mocked Meta API only.
 
 ## Phase 3 preview (Instagram & Messenger)

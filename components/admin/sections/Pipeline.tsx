@@ -272,7 +272,7 @@ function LeadDrawer({ id, onClose, onChanged, can }: { id: string | null; onClos
   );
 }
 
-function Transcript({ messages }: { messages: { id: string; role: string; content: string; created_at: string; tool_name?: string | null }[] }) {
+function Transcript({ messages }: { messages: { id: string; role: string; content: string; created_at: string; tool_name?: string | null; metadata?: { staff?: string } | null }[] }) {
   return (
     <ol className="space-y-2.5">
       {messages.map((m) =>
@@ -282,7 +282,7 @@ function Transcript({ messages }: { messages: { id: string; role: string; conten
           <li key={m.id} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
             <div className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3.5 py-2 text-sm ${m.role === 'user' ? 'bg-royal text-white' : 'bg-mist'}`}>
               {m.content}
-              <span className={`mt-1 block text-[10px] ${m.role === 'user' ? 'text-white/60' : 'text-muted'}`}>{m.role === 'user' ? 'Visitor' : 'ASPARC AI'} · {fmtDate(m.created_at)}</span>
+              <span className={`mt-1 block text-[10px] ${m.role === 'user' ? 'text-white/60' : 'text-muted'}`}>{m.role === 'user' ? 'Visitor' : m.metadata?.staff ? `ASPARC staff (${m.metadata.staff})` : 'ASPARC AI'} · {fmtDate(m.created_at)}</span>
             </div>
           </li>
         ),
@@ -304,7 +304,11 @@ interface ConvoRow {
   customer_name: string | null;
   lead_id: string | null;
   created_at: string;
+  state?: { human_takeover?: boolean; opted_out?: boolean; last_inbound_at?: string } | null;
 }
+
+const MESSAGING_CHANNELS = ['whatsapp', 'facebook', 'instagram'];
+const CHANNEL_NAMES: Record<string, string> = { whatsapp: 'WhatsApp', facebook: 'Facebook Messenger', instagram: 'Instagram' };
 
 export function ConversationsSection({ can }: { can: Can }) {
   const [attention, setAttention] = useState(getParam('attention') === '1');
@@ -315,12 +319,35 @@ export function ConversationsSection({ can }: { can: Can }) {
     setOpenId(id);
     setParam('id', id);
   };
-  const detail = useApi<{ conversation: ConvoRow; messages: { id: string; role: string; content: string; created_at: string; tool_name: string | null }[]; customer: { full_name: string } | null; lead: { id: string } | null }>(openId ? `/api/admin/conversations/${openId}` : null);
+  const detail = useApi<{ conversation: ConvoRow; messages: { id: string; role: string; content: string; created_at: string; tool_name: string | null; metadata?: { staff?: string } | null }[]; customer: { full_name: string } | null; lead: { id: string } | null }>(openId ? `/api/admin/conversations/${openId}` : null);
 
   async function update(body: Record<string, unknown>) {
     await api(`/api/admin/conversations/${openId}`, { method: 'PATCH', body });
     await detail.reload();
     reload();
+  }
+
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
+  useEffect(() => {
+    setDraft('');
+    setReplyError(null);
+  }, [openId]);
+  async function sendReply() {
+    if (!draft.trim() || sending) return;
+    setSending(true);
+    setReplyError(null);
+    try {
+      await api(`/api/admin/conversations/${openId}/reply`, { body: { message: draft } });
+      setDraft('');
+      await detail.reload();
+      reload();
+    } catch (e) {
+      setReplyError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -364,9 +391,43 @@ export function ConversationsSection({ can }: { can: Can }) {
                 {detail.data.lead && <a className="inline-flex items-center rounded-md px-3.5 py-2 text-sm font-medium text-royal hover:bg-white" href={`/admin/leads?id=${detail.data.lead.id}`}>Open lead →</a>}
               </div>
             )}
+            {detail.data.conversation.state?.human_takeover && (
+              <Notice>
+                A staff member is handling this conversation, so ASPARC AI is paused for it (emergency messages still get the 000 reply).
+                {can('conversations:write') && (
+                  <Button variant="secondary" size="sm" className="ml-3" onClick={() => update({ human_takeover: false })}>
+                    Hand back to ASPARC AI
+                  </Button>
+                )}
+              </Notice>
+            )}
+            {detail.data.conversation.state?.opted_out && <Notice tone="warn">This person sent STOP and has opted out of messages.</Notice>}
             <Panel>
               <Transcript messages={detail.data.messages} />
             </Panel>
+            {can('conversations:write') && MESSAGING_CHANNELS.includes(detail.data.conversation.channel) && detail.data.conversation.status !== 'closed' && (
+              <Panel>
+                <label className="block text-sm font-medium" htmlFor="staff-reply">
+                  Reply as ASPARC staff
+                </label>
+                <p className="mt-1 text-xs text-muted">
+                  Sent to the customer on {CHANNEL_NAMES[detail.data.conversation.channel] ?? label(detail.data.conversation.channel)}. Replying pauses ASPARC AI for this conversation. You can only reply within 24 hours of their last message.
+                </p>
+                <textarea
+                  id="staff-reply"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  rows={3}
+                  maxLength={2000}
+                  className="mt-3 w-full rounded-md border border-line px-3 py-2 text-sm"
+                  placeholder="Write your reply…"
+                />
+                {replyError && <p className="mt-2 text-sm text-danger" role="alert">{replyError}</p>}
+                <Button className="mt-3" disabled={sending || !draft.trim()} onClick={sendReply}>
+                  {sending ? 'Sending…' : 'Send reply'}
+                </Button>
+              </Panel>
+            )}
           </div>
         )}
       </Drawer>
