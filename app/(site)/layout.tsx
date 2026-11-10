@@ -1,9 +1,9 @@
 import { SiteShell } from '@/components/site/SiteShell';
-import { getPublicSiteData } from '@/lib/kb/service';
+import { getCachedPublicSiteData } from '@/lib/kb/cached';
 
 export const revalidate = 60;
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
-  const site = await getPublicSiteData();
+  const site = await getCachedPublicSiteData();
   return <SiteShell site={site}>{children}</SiteShell>;
 }

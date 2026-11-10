@@ -1,3 +1,4 @@
+import { refreshPublicSiteData } from '@/lib/kb/cached';
 import { db } from '@/lib/db';
 import { handler, json, readJson, requireAdmin } from '@/lib/http/respond';
 import { listKnowledge } from '@/lib/kb/service';
@@ -16,5 +17,6 @@ export const POST = handler(async (req) => {
   const body = KbBody.parse(await readJson(req));
   if (await db().findOne('knowledge_base', { key: body.key })) return json({ error: 'That key already exists' }, 409);
   const item = await db().insert('knowledge_base', { ...body, updated_by: s.email });
+  refreshPublicSiteData();
   return json({ item }, 201);
 });

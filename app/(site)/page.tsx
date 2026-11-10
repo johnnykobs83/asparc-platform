@@ -1,8 +1,8 @@
 import { HomeView } from '@/components/site/views/HomeView';
-import { getPublicSiteData } from '@/lib/kb/service';
+import { getCachedPublicSiteData } from '@/lib/kb/cached';
 
 export const revalidate = 60;
 
 export default async function HomePage() {
-  return <HomeView site={await getPublicSiteData()} />;
+  return <HomeView site={await getCachedPublicSiteData()} />;
 }

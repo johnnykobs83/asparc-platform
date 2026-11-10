@@ -1,3 +1,4 @@
+import { refreshPublicSiteData } from '@/lib/kb/cached';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { handler, json, readJson, requireAdmin } from '@/lib/http/respond';
@@ -20,5 +21,7 @@ export const POST = handler(async (req) => {
     .refine((v) => v.price_status === 'on_enquiry' || v.price_cents != null, { message: 'Draft or approved pricing needs a price', path: ['price_cents'] })
     .parse(await readJson(req));
   if (await db().findOne('services', { slug: body.slug })) return json({ error: 'Slug already exists' }, 409);
-  return json({ service: await db().insert('services', body) }, 201);
+  const service = await db().insert('services', body);
+  refreshPublicSiteData();
+  return json({ service }, 201);
 });

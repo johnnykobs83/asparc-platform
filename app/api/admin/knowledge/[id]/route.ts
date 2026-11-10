@@ -1,3 +1,4 @@
+import { refreshPublicSiteData } from '@/lib/kb/cached';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { error, handler, json, readJson, requireAdmin } from '@/lib/http/respond';
@@ -16,6 +17,7 @@ export const PATCH = handler(async (req, { params }: Ctx) => {
   const s = await requireAdmin(req, 'kb:write');
   const p = Patch.parse(await readJson(req));
   const item = await db().update('knowledge_base', (await params).id, { ...p, updated_by: s.email });
+  if (item) refreshPublicSiteData();
   return item ? json({ item }) : error('Not found', 404);
 });
 
@@ -23,5 +25,6 @@ export const PATCH = handler(async (req, { params }: Ctx) => {
 export const DELETE = handler(async (req, { params }: Ctx) => {
   const s = await requireAdmin(req, 'kb:write');
   const item = await db().update('knowledge_base', (await params).id, { status: 'archived', updated_by: s.email });
+  if (item) refreshPublicSiteData();
   return item ? json({ item }) : error('Not found', 404);
 });
