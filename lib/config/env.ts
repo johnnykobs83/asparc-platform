@@ -161,6 +161,14 @@ export function integrationStatuses(): IntegrationStatus[] {
   const rs = missing(['RESEND_API_KEY', 'RESEND_FROM', 'NOTIFY_EMAIL_TO']);
   const cr = missing(['CRON_SECRET']);
 
+  // Later phases: "not_started" until the first setting is added, "connected" only when all are present and switched on.
+  const later = (m: string[], total: number): IntegrationStatus['state'] =>
+    m.length === 0 ? 'connected' : m.length === total ? 'not_started' : 'partially_configured';
+  const on = (flagKey: string) => (flag(flagKey) ? [] : [flagKey + '=true']);
+  const wa = [...on('WHATSAPP_ENABLED'), ...missing(['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_VERIFY_TOKEN', 'META_APP_SECRET'])];
+  const ms = [...on('META_MESSENGER_ENABLED'), ...missing(['META_PAGE_ACCESS_TOKEN', 'META_APP_SECRET']), ...(read('META_VERIFY_TOKEN') || read('WHATSAPP_VERIFY_TOKEN') ? [] : ['META_VERIFY_TOKEN'])];
+  const st = missing(['STRIPE_WEBHOOK_SECRET']);
+
   return [
     {
       key: 'supabase',
@@ -219,25 +227,37 @@ export function integrationStatuses(): IntegrationStatus[] {
       key: 'whatsapp',
       name: 'WhatsApp Business Platform',
       phase: 2,
-      state: 'not_started',
-      detail: 'Architecture prepared. Requires Meta Business verification and a WhatsApp number.',
-      missing: missing(['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_VERIFY_TOKEN', 'META_APP_SECRET']),
+      state: later(wa, 5),
+      detail:
+        wa.length === 0
+          ? 'Live: WhatsApp messages are answered by ASPARC AI. Webhook: /api/webhooks/whatsapp'
+          : wa.length === 5
+            ? 'Built and switched off. Requires Meta Business verification and a WhatsApp number.'
+            : 'Switched off until every setting below is added.',
+      missing: wa,
     },
     {
       key: 'messenger',
       name: 'Instagram & Facebook Messenger',
       phase: 3,
-      state: 'not_started',
-      detail: 'Architecture prepared. Requires Meta app review for messaging permissions.',
-      missing: missing(['META_PAGE_ACCESS_TOKEN', 'META_PAGE_ID', 'INSTAGRAM_ACCOUNT_ID']),
+      state: later(ms, 4),
+      detail:
+        ms.length === 0
+          ? 'Live: Messenger and Instagram messages are answered by ASPARC AI. Webhook: /api/webhooks/meta'
+          : ms.length === 4
+            ? 'Built and switched off. Requires Meta app review for messaging permissions.'
+            : 'Switched off until every setting below is added.',
+      missing: ms,
     },
     {
       key: 'stripe',
       name: 'Stripe payments',
       phase: 4,
-      state: 'not_started',
-      detail: 'Revenue reporting activates once Stripe is connected. No card data is ever taken in chat.',
-      missing: missing(['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET']),
+      state: later(st, 1),
+      detail: st.length
+        ? 'Built and switched off. Revenue reporting activates once the Stripe webhook is connected. No card data is ever taken in chat.'
+        : 'Live: payments reported by Stripe are recorded and shown in Revenue. Webhook: /api/webhooks/stripe',
+      missing: st,
     },
     {
       key: 'cliniko',

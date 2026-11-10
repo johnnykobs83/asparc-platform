@@ -8,6 +8,7 @@ import { GET as revenueGET } from '../app/api/admin/revenue/route';
 import { OPT_IN_REPLY, OPT_OUT_REPLY } from '../lib/channels/inbound';
 import { chunkText } from '../lib/channels/messenger';
 import { db } from '../lib/db';
+import { integrationStatuses } from '../lib/config/env';
 import { verifyStripeSignature } from '../lib/integrations/stripe';
 import { adminCookie, freshDb, mockFetch, req, type FetchCall } from './helpers';
 
@@ -245,5 +246,29 @@ describe('Phase 3 – Messenger & Instagram channel', () => {
     assert.ok(parts.length > 1);
     for (const p of parts) assert.ok(p.length <= 1000);
     assert.equal(parts.join(' ').replace(/\s+/g, ' '), text.replace(/\s+/g, ' '));
+  });
+});
+
+describe('Integration status for later phases', () => {
+  const stateOf = (key: string) => integrationStatuses().find((i) => i.key === key)!;
+
+  it('shows later phases as prepared until configured, and never as connected when partly set up', () => {
+    freshDb();
+    for (const k of ['whatsapp', 'messenger', 'stripe', 'cliniko']) assert.equal(stateOf(k).state, 'not_started');
+    freshDb({ WHATSAPP_ACCESS_TOKEN: 'x' });
+    assert.equal(stateOf('whatsapp').state, 'partially_configured');
+    assert.ok(stateOf('whatsapp').missing.includes('WHATSAPP_ENABLED=true'));
+    // all credentials but not switched on is still not "connected"
+    freshDb({ ...WA_ENV, WHATSAPP_ENABLED: 'false' });
+    assert.equal(stateOf('whatsapp').state, 'partially_configured');
+  });
+
+  it('shows connected only when everything is present and switched on', () => {
+    freshDb({ ...WA_ENV, ...MSG_ENV, STRIPE_WEBHOOK_SECRET: WHSEC });
+    assert.equal(stateOf('whatsapp').state, 'connected');
+    assert.equal(stateOf('messenger').state, 'connected');
+    assert.equal(stateOf('stripe').state, 'connected');
+    assert.equal(stateOf('cliniko').state, 'not_started');
+    assert.deepEqual(stateOf('stripe').missing, []);
   });
 });
