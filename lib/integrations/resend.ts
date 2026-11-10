@@ -58,7 +58,7 @@ export function emailLayout(title: string, bodyHtml: string, cta?: { label: stri
 <div style="font-size:15px;line-height:1.55">${bodyHtml}</div>
 ${cta ? `<p style="margin:24px 0 0"><a href="${cta.url}" style="background:#14519C;color:#FFFFFF;text-decoration:none;padding:12px 20px;border-radius:6px;display:inline-block;font-weight:bold">${esc(cta.label)}</a></p>` : ''}
 </td></tr>
-<tr><td style="padding:16px 28px;background:#F2F5F8;font-size:12px;color:#5b6670">PERFORMANCE STARTS HERE. · ${esc(env.siteUrl.replace(/^https?:\/\//, ''))}</td></tr>
+<tr><td style="padding:16px 28px;background:#F2F5F8;font-size:12px;color:#5b6670">HIGH PERFORMANCE STARTS HERE. · ${esc(env.siteUrl.replace(/^https?:\/\//, ''))}</td></tr>
 </table></td></tr></table></body></html>`;
 }
 

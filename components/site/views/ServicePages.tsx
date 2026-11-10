@@ -338,7 +338,7 @@ export function AboutView({ site }: { site: PublicSiteData }) {
       <Section>
         <div className="grid gap-12 lg:grid-cols-2">
           <div>
-            <SectionHeading eyebrow="Our purpose" title="Performance starts here." intro="Unlock your potential. Develop your performance. Return stronger." />
+            <SectionHeading eyebrow="Our purpose" title="High performance starts here." intro="Unlock your potential. Develop your performance. Return stronger." />
             <p className="text-[15px] leading-relaxed text-muted">ASPARC brings professional high-performance practice to every athlete who walks through the door – whether they are a professional footballer, a junior just starting their athletic journey, a community club, or an adult wanting to get stronger and move better.</p>
           </div>
           <div>

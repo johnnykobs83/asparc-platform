@@ -25,7 +25,9 @@ export function HomeView({ site }: { site: PublicSiteData }) {
             <span className="h-px w-10 bg-sky" aria-hidden="true" /> Melbourne · Sports Performance &amp; Rehabilitation
           </p>
           <h1 className="max-w-5xl text-[clamp(2.5rem,11vw,9.5rem)] uppercase leading-[0.82] tracking-tight">
-            Performance
+            High
+            <br />
+            performance
             <br />
             starts <span className="text-sky">here.</span>
           </h1>

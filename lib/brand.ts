@@ -11,7 +11,7 @@ export const BRAND = {
   name: 'ASPARC',
   fullName: 'Australian Sports Performance and Rehabilitation Centre',
   domain: 'www.asparc.com.au',
-  tagline: 'PERFORMANCE STARTS HERE.',
+  tagline: 'HIGH PERFORMANCE STARTS HERE.',
   supporting: 'Unlock your potential. Develop your performance. Return stronger.',
   location: 'Melbourne, Victoria, Australia',
   colors: {

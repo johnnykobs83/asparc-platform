@@ -27,7 +27,7 @@ Services:
 
 Founder: Bachelor of Exercise Science & Human Movement (2010), Master of High Performance (2017), professional football high performance with Newcastle Jets and Avondale FC.
 
-Tagline: **PERFORMANCE STARTS HERE.** Supporting line: *Unlock your potential. Develop your performance. Return stronger.*
+Tagline: **HIGH PERFORMANCE STARTS HERE.** Supporting line: *Unlock your potential. Develop your performance. Return stronger.*
 
 Brand colours:
 

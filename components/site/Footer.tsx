@@ -19,7 +19,7 @@ export function Footer({ site }: { site: PublicSiteData }) {
         <div className="md:col-span-4">
           <Logo onDark className="h-24" />
           <p className="mt-6 font-display text-3xl font-bold uppercase leading-none tracking-tight">
-            Performance <span className="text-sky">starts here.</span>
+            High performance <span className="text-sky">starts here.</span>
           </p>
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/60">{BRAND.fullName}. Sports performance, athlete development, rehabilitation and recovery in {BRAND.location}.</p>
         </div>
