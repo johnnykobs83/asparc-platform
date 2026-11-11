@@ -104,6 +104,7 @@ export function AcademyView({ site }: { site: PublicSiteData }) {
             <SectionHeading eyebrow="The program" title="10 weeks. One session a week." intro="Each Academy block is designed to develop well-rounded athletes – not just better players in one sport. Training is grouped by age so every session is appropriate for the athlete’s stage of development." />
             <ul className="grid gap-3 text-[15px] sm:grid-cols-2">
               <Check>10-week training block</Check>
+              <Check>Runs during school terms</Check>
               <Check>One session per week</Check>
               <Check>45–60 minutes per session</Check>
               <Check>Four age groups: 8–10, 11–13, 14–16, 16–18</Check>

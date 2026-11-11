@@ -85,7 +85,7 @@ export const DEFAULT_SERVICES: SeedService[] = [
     name: 'Performance Academy – 10-Week Program',
     category: 'academy',
     summary:
-      'A 10-week athletic development block for ages 8–18: one 45–60 minute session per week focusing on strength, speed, agility, coordination, power and athletic development.',
+      'A 10-week athletic development block for ages 8–18: one 45–60 minute session per week focusing on strength, speed, agility, coordination, power and athletic development. Runs during school terms.',
     duration_minutes: 60,
     price_cents: 38000,
     price_unit: 'per 10-week program',
