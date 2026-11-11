@@ -309,6 +309,39 @@ export interface AdminUser {
   updated_at: Iso;
 }
 
+/** Weekly working hours: keys '0'–'6' (0 = Sunday), minutes from midnight in Melbourne local time. */
+export type WeeklyHours = Record<string, { start: number; end: number }[]>;
+
+export interface Practitioner {
+  id: Uuid;
+  name: string;
+  title: string | null;
+  service_ids: Uuid[];
+  weekly_hours: WeeklyHours;
+  buffer_minutes: number;
+  active: boolean;
+  created_at: Iso;
+  updated_at: Iso;
+}
+
+export interface Appointment {
+  id: Uuid;
+  practitioner_id: Uuid;
+  service_id: Uuid | null;
+  service_name: string;
+  customer_id: Uuid;
+  starts_at: Iso;
+  ends_at: Iso;
+  /** ends_at plus the practitioner's buffer – the range that may not overlap another booking. */
+  blocked_until: Iso;
+  status: 'confirmed' | 'cancelled' | 'completed' | 'no_show';
+  notes: string | null;
+  cancel_reason: string | null;
+  source: string;
+  created_at: Iso;
+  updated_at: Iso;
+}
+
 export interface Tables {
   customers: Customer;
   conversations: Conversation;
@@ -324,5 +357,7 @@ export interface Tables {
   payments: Payment;
   daily_summaries: DailySummary;
   admin_users: AdminUser;
+  practitioners: Practitioner;
+  appointments: Appointment;
 }
 export type TableName = keyof Tables;

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { api, fmtDate, fmtMoney, getParam, label, setParam, useApi } from '../api';
+import { OnlineBookingPanel } from './OnlineBooking';
 import { Badge, Button, DataTable, Drawer, ErrorNote, KV, Loading, Notice, PageHeader, Panel, STAGE_TONE, Select, useToast } from '../ui';
 
 type Can = (p: string) => boolean;
@@ -456,10 +457,13 @@ export function BookingsSection({ can }: { can: Can }) {
   return (
     <>
       {toastNode}
-      <PageHeader title="Bookings" description="Booking requests from the website and ASPARC AI." />
+      <PageHeader title="Bookings" description="Online bookings customers make themselves, and booking requests from the website and ASPARC AI." />
+      <h2 className="mb-3 font-display text-xl font-bold uppercase">Online bookings</h2>
+      <OnlineBookingPanel can={can} />
+      <h2 className="mb-3 font-display text-xl font-bold uppercase">Booking requests</h2>
       <div className="mb-4">
         <Notice>
-          <strong>Requests only.</strong> No live availability is shown to clients and nothing is auto-confirmed. Contact the client to arrange a time, then set the status to <em>Confirmed by staff</em>. Online scheduling (Cliniko) and payments (Stripe) arrive in Phase 4.
+          <strong>Requests are not bookings.</strong> These came from the request form or ASPARC AI for services that are not booked online. Contact the client to arrange a time, then set the status to <em>Confirmed by staff</em>.
         </Notice>
       </div>
       {error && <ErrorNote message={error} />}

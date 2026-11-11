@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react';
 import { Logo } from './Logo';
 import { NAV } from './nav';
 
-export function Header({ pathname: initialPath = '' }: { pathname?: string }) {
+export function Header({ pathname: initialPath = '', onlineBooking = false }: { pathname?: string; onlineBooking?: boolean }) {
+  const cta = onlineBooking ? { href: '/book', label: 'Book online' } : { href: '/contact', label: 'Enquire now' };
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [path, setPath] = useState(initialPath);
@@ -44,8 +45,8 @@ export function Header({ pathname: initialPath = '' }: { pathname?: string }) {
           })}
         </nav>
         <div className="flex items-center gap-2">
-          <Link href="/contact" className="btn-primary hidden whitespace-nowrap !px-4 !py-2.5 !text-sm sm:inline-flex">
-            Enquire now
+          <Link href={cta.href} className="btn-primary hidden whitespace-nowrap !px-4 !py-2.5 !text-sm sm:inline-flex">
+            {cta.label}
           </Link>
           <button
             type="button"
@@ -69,8 +70,8 @@ export function Header({ pathname: initialPath = '' }: { pathname?: string }) {
                 {n.label}
               </Link>
             ))}
-            <Link href="/contact" onClick={() => setOpen(false)} className="btn-primary mt-8">
-              Enquire now
+            <Link href={cta.href} onClick={() => setOpen(false)} className="btn-primary mt-8">
+              {cta.label}
             </Link>
           </div>
         </nav>

@@ -75,7 +75,7 @@ A static design preview of the website was published as a private claude.ai arti
 4. **No physiotherapy or diagnosis claims.** Rehab is exercise-based return-to-performance, alongside the treating practitioner.
 5. **No fake/demo data** in production: no fake customers, revenue or availability. The dashboard shows real records only.
 6. **AI safety rules live in code** (`lib/ai/guardrails.ts`, `lib/ai/prompt.ts` → `HARD_RULES`). They must not become editable from the KB or be weakened.
-7. **Nothing is "confirmed" automatically.** Bookings, registrations and payments are requests until a staff member confirms them.
+7. **Nothing is "confirmed" automatically, with one owner-approved exception.** Enquiries, booking requests, registrations and payments are requests until a staff member confirms them. The exception (Johnny, 11 Nov 2026): appointments customers make themselves on the `/book` page are confirmed immediately – see `docs/ONLINE-BOOKING.md`. ASPARC AI still never makes or confirms a booking.
 8. **Privacy (APPs):** minimal collection; separate contact and marketing consent; guardian consent for minors; no medical data via chat/forms; secrets only in env vars.
 9. **Keep dependencies minimal.** Don't add SDKs unless there's a clear need.
 

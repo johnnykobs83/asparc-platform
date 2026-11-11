@@ -61,6 +61,7 @@ These are seeded as **draft / pending** and are labelled that way on the website
 
 - Performance Academy price **$380 per 10-week program** (draft) and program dates
 - Remedial massage **$60 / $80 / $100** (draft) and practitioner availability
+- Online booking (`/book`): customers book themselves with a practitioner and are confirmed immediately. Off until practitioners are added in the dashboard – see `docs/ONLINE-BOOKING.md`
 - Performance testing menu: nine assessments confirmed by the owner (aerobic fitness, anaerobic fitness, functional strength, jump, speed, acceleration, power, body asymmetry, athletic profiling), priced on enquiry. No equipment brand (e.g. VALD/ForceDecks) is mentioned anywhere
 - Contact email, phone, social links, venue address and opening hours (left blank and hidden until you enter and approve them)
 - Cancellation/refund policy

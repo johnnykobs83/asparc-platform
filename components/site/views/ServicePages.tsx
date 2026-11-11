@@ -229,7 +229,8 @@ export function RecoveryView({ site }: { site: PublicSiteData }) {
   return (
     <>
       <PageHero eyebrow="Recovery & Remedial Massage" title={<>Recover well. <span className="text-sky">Train well.</span></>} intro="Remedial massage to support recovery between sessions, manage training load and help you feel ready to perform." image={IMAGES.recovery}>
-        <Link href="#enquire" className="btn-primary">Appointment enquiry</Link>
+        {site.onlineBooking && <Link href="/book" className="btn-primary">Book online</Link>}
+        <Link href="#enquire" className={site.onlineBooking ? 'btn-outline' : 'btn-primary'}>Appointment enquiry</Link>
       </PageHero>
       <Section>
         <div className="grid gap-12 lg:grid-cols-12">

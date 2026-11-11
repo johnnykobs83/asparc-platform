@@ -69,7 +69,9 @@ export function guidedRespond(text: string, ctx: AiContext, opts: { firstMessage
   }
   if (has(t, INTENTS.massage)) {
     return {
-      reply: `Remedial massage options:\n${lines('recovery')}\n\nSend an appointment enquiry and the team will contact you to arrange a time.`,
+      reply: ctx.bookingUrl
+        ? `Remedial massage options:\n${lines('recovery')}\n\nYou can book online here: ${ctx.bookingUrl}\nChoose a time that suits you there and the page will show your confirmation straight away. I can't make the booking for you. If you'd rather the team arranged it, send an appointment enquiry below.`
+        : `Remedial massage options:\n${lines('recovery')}\n\nSend an appointment enquiry and the team will contact you to arrange a time.`,
       actions: [{ type: 'enquiry_form', form: 'massage', leadType: 'massage', serviceInterest: 'Remedial massage' }],
     };
   }
@@ -96,7 +98,9 @@ export function guidedRespond(text: string, ctx: AiContext, opts: { firstMessage
   }
   if (has(t, INTENTS.booking)) {
     return {
-      reply: `${faq('faq.booking') ?? 'Online booking is not live yet.'}`,
+      reply: ctx.bookingUrl
+        ? `You can book online here: ${ctx.bookingUrl}\nChoose a service and a time that suits you there and the page will show your confirmation straight away. I can't make the booking for you. For anything that isn't listed there, send a booking request below and the team will arrange it with you.`
+        : `${faq('faq.booking') ?? 'Online booking is not live yet.'}`,
       actions: [{ type: 'enquiry_form', form: 'booking', leadType: 'booking' }],
     };
   }

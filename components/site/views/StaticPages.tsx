@@ -117,6 +117,7 @@ export function TermsView({ site }: { site: PublicSiteData }) {
           <p>These terms apply to your use of this website and to services provided by {BRAND.name} ({BRAND.fullName}). By using the website or our services you agree to them. Nothing in these terms excludes rights you have under the Australian Consumer Law.</p>
           <h2>2. Enquiries, bookings and registrations</h2>
           <p>Submitting an enquiry, booking request or Academy registration through this website or ASPARC AI is a <strong>request only</strong>. A session, program place or appointment is confirmed only when a member of the ASPARC team confirms it with you directly.</p>
+          <p>The exception is an appointment you make yourself on the <strong>Book online</strong> page: that appointment is confirmed as soon as the page shows your booking confirmation. ASPARC AI cannot make or confirm bookings.</p>
           <h2>3. Pricing</h2>
           <p>Prices shown as “draft” are indicative and subject to confirmation. The price that applies is the price confirmed with you before you commit to a service.</p>
           <h2>4. Payments</h2>

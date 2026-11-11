@@ -52,6 +52,8 @@ export interface PublicSiteData {
   contact: { email: string; phone: string; instagram_url: string; facebook_url: string; linkedin_url: string };
   hours: { text: string; confirmed: boolean };
   location: { text: string; address: string };
+  /** True when at least one service can be booked online (set by the cached loader). */
+  onlineBooking?: boolean;
 }
 
 /**

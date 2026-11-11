@@ -1,3 +1,5 @@
+import { onlineBookingEnabled } from '../bookings/service';
+import { env } from '../config/env';
 import type { KnowledgeItem, Service } from '../db/types';
 import { formatPrice, listKnowledge, listServices } from '../kb/service';
 
@@ -6,15 +8,17 @@ export interface AiContext {
   knowledge: KnowledgeItem[];
   knownPrices: number[];
   style: string;
+  /** URL of the self-service booking page, or null when online booking is not set up. */
+  bookingUrl: string | null;
 }
 
 export async function loadAiContext(): Promise<AiContext> {
-  const [services, knowledge] = await Promise.all([listServices({ publicOnly: true }), listKnowledge()]);
+  const [services, knowledge, bookable] = await Promise.all([listServices({ publicOnly: true }), listKnowledge(), onlineBookingEnabled().catch(() => false)]);
   const knownPrices = services
     .filter((s) => s.price_cents !== null && s.price_status !== 'on_enquiry')
     .map((s) => s.price_cents! / 100);
   const style = knowledge.find((k) => k.key === 'ai.style' && k.status === 'approved')?.content ?? '';
-  return { services, knowledge, knownPrices, style };
+  return { services, knowledge, knownPrices, style, bookingUrl: bookable ? `${env.siteUrl}/book` : null };
 }
 
 export function priceLine(s: Service): string {
@@ -50,6 +54,9 @@ export function renderKnowledgeForPrompt(ctx: AiContext): string {
     svcBlock,
     '# APPROVED BUSINESS INFORMATION',
     ...approved.map((k) => `### ${k.title}\n${k.content}`),
+    ...(ctx.bookingUrl
+      ? [`# ONLINE BOOKING\nCustomers can book an appointment themselves at ${ctx.bookingUrl} – they choose a service and a time there, and that page shows them their confirmation. You cannot see availability or make a booking, and you must never describe a booking as confirmed; point people to that page.`]
+      : []),
     '# NOT YET CONFIRMED (say these are being finalised; do not guess)',
     ...pending.map((k) => `- ${k.title}`),
   ].join('\n\n');
