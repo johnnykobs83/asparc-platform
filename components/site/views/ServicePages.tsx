@@ -292,10 +292,10 @@ export function TestingView({ site }: { site: PublicSiteData }) {
   return (
     <>
       <PageHero eyebrow="Performance Testing" title={<>Measure. Understand. <span className="text-sky">Improve.</span></>} intro="Athletic profiling helps identify strengths, gaps and training priorities – and shows progress over time." image={IMAGES.testing}>
-        <Link href="#enquire" className="btn-primary">Register interest</Link>
+        <Link href="#enquire" className="btn-primary">Enquire about testing</Link>
       </PageHero>
       <Section>
-        <SectionHeading eyebrow="Why test" title="Training decisions, informed" intro="Testing turns ‘I think’ into ‘we know’. A clear profile of an athlete’s physical qualities helps prioritise training, monitor development and track return-to-performance progress." />
+        <SectionHeading eyebrow="Why test" title="Training decisions, informed" intro="Testing turns ‘I think’ into ‘we know’. A clear profile of an athlete’s physical qualities helps prioritise training, monitor development and track return-to-performance progress. We profile our players and make recommendations on how to improve deficits." />
         {confirmed.length > 0 && (
           <>
             <h3 className="mb-5 text-2xl uppercase">Available assessments</h3>

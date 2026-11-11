@@ -138,10 +138,14 @@ describe('knowledge base defaults honour the brief', () => {
     const m = DEFAULT_SERVICES.filter((s) => s.category === 'recovery').map((s) => [s.duration_minutes, s.price_cents, s.price_status]);
     assert.deepEqual(m, [[30, 6000, 'draft'], [45, 8000, 'draft'], [60, 10000, 'draft']]);
   });
-  it('all testing services are pending confirmation and never mention VALD/ForceDecks', () => {
+  it('testing menu is the owner-confirmed list, priced on enquiry, and never mentions VALD/ForceDecks', () => {
     const t = DEFAULT_SERVICES.filter((s) => s.category === 'testing');
-    assert.ok(t.length >= 7);
-    assert.ok(t.every((s) => s.availability === 'pending_confirmation'));
+    assert.deepEqual(
+      t.map((s) => s.name),
+      ['Aerobic Fitness Testing', 'Anaerobic Fitness Testing', 'Functional Strength Testing', 'Jump Testing', 'Speed Testing', 'Acceleration Testing', 'Power Testing', 'Body Asymmetry Assessment', 'Athletic Profiling'],
+    );
+    assert.ok(t.every((s) => s.availability === 'available'));
+    assert.ok(t.every((s) => s.price_status === 'on_enquiry' && s.price_cents == null));
     const all = JSON.stringify(DEFAULT_SERVICES) + JSON.stringify(DEFAULT_KNOWLEDGE.filter((k) => k.key !== 'faq.testing'));
     assert.ok(!/forcedecks|vald/i.test(all.replace(/"keywords":\[[^\]]*\]/g, '')));
   });

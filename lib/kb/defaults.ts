@@ -139,19 +139,21 @@ export const DEFAULT_SERVICES: SeedService[] = [
     availability: 'pending_confirmation',
     sort_order: 320,
   }),
-  // Testing – all pending until equipment is confirmed
+  // Testing – menu confirmed by the owner (11 Nov 2026). No equipment brands are named.
   ...(
     [
-      ['strength-testing', 'Strength Testing', 'Assessment of maximal and relative strength.'],
-      ['jump-testing', 'Jump Performance Testing', 'Assessment of jump height and jump strategy.'],
+      ['aerobic-fitness-testing', 'Aerobic Fitness Testing', 'Assessment of aerobic fitness.'],
+      ['anaerobic-fitness-testing', 'Anaerobic Fitness Testing', 'Assessment of anaerobic fitness.'],
+      ['strength-testing', 'Functional Strength Testing', 'Assessment of functional strength.'],
+      ['jump-testing', 'Jump Testing', 'Assessment of jump performance.'],
       ['speed-testing', 'Speed Testing', 'Timed sprint assessment over sport-relevant distances.'],
       ['acceleration-testing', 'Acceleration Testing', 'Assessment of short-distance acceleration.'],
       ['power-testing', 'Power Testing', 'Assessment of explosive power output.'],
-      ['asymmetry-testing', 'Asymmetry Assessment', 'Left/right comparison to identify imbalances worth addressing in training.'],
-      ['athletic-profiling', 'Athletic Profiling', 'A combined profile of physical qualities to guide training priorities.'],
+      ['asymmetry-testing', 'Body Asymmetry Assessment', 'Left/right comparison to identify imbalances worth addressing in training.'],
+      ['athletic-profiling', 'Athletic Profiling', 'We profile our players and make recommendations on how to improve deficits.'],
     ] as const
   ).map(([slug, name, summary], i) =>
-    svc({ slug, name, category: 'testing', summary, availability: 'pending_confirmation', sort_order: 400 + i * 10 }),
+    svc({ slug, name, category: 'testing', summary, availability: 'available', sort_order: 400 + i * 10 }),
   ),
 ];
 
@@ -308,7 +310,7 @@ export const DEFAULT_KNOWLEDGE: SeedKb[] = [
     category: 'faq',
     title: 'What performance testing do you offer?',
     content:
-      'ASPARC is finalising its performance testing menu, which is planned to cover areas such as strength, jump performance, speed, acceleration, power, asymmetry and athletic profiling. Register your interest and the team will confirm which assessments are available.',
+      'ASPARC performance testing includes aerobic fitness, anaerobic fitness, functional strength, jump, speed, acceleration, power, body asymmetry and athletic profiling. We profile our players and make recommendations on how to improve deficits. Send an enquiry and the team will arrange testing with you.',
     data: { keywords: ['test', 'testing', 'assessment', 'profiling', 'force', 'jump', 'sprint', 'vald', 'forcedecks'] },
   }),
   kb({

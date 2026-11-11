@@ -23,7 +23,7 @@ Services:
 - **Performance Academy:** ages 8–10, 11–13, 14–16, 16–18. 10 weeks, one 45–60 min session per week. **$380, draft price.**
 - **Rehabilitation:** exercise-based return-to-performance only.
 - **Remedial massage:** 30/45/60 min at **$60/$80/$100, draft.** Delivered by contractors whose availability is still being confirmed.
-- **Performance testing:** every assessment is pending confirmation.
+- **Performance testing:** aerobic fitness, anaerobic fitness, functional strength, jump, speed, acceleration, power, body asymmetry and athletic profiling (confirmed by Johnny 11 Nov 2026; priced on enquiry).
 
 Founder: Bachelor of Exercise Science & Human Movement (2010), Master of High Performance (2017), professional football high performance with Newcastle Jets and Avondale FC.
 

@@ -87,7 +87,7 @@ export function guidedRespond(text: string, ctx: AiContext, opts: { firstMessage
   }
   if (has(t, INTENTS.testing)) {
     return {
-      reply: `${faq('faq.testing') ?? 'The performance testing menu is being finalised.'}`,
+      reply: `${faq('faq.testing') ?? 'Please send an enquiry and the team will tell you about performance testing.'}`,
       actions: [{ type: 'enquiry_form', form: 'contact', leadType: 'testing', serviceInterest: 'Performance testing' }],
     };
   }

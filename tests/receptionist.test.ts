@@ -67,8 +67,9 @@ describe('receptionist – guided mode (no OpenAI key)', () => {
 
   it('does not claim testing equipment is available', async () => {
     const r = await send('do you have force plate testing?');
-    assert.match(r.reply, /finalising|confirm/i);
-    assert.doesNotMatch(r.reply, /VALD|ForceDecks/);
+    // Answers with the confirmed testing menu and an enquiry prompt – never an equipment claim.
+    assert.match(r.reply, /enquiry/i);
+    assert.doesNotMatch(r.reply, /force plate|VALD|ForceDecks/i);
   });
 
   it('logs unanswered questions for management', async () => {
