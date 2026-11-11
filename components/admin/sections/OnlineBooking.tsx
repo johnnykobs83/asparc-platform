@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { api, fmtDate, label, useApi } from '../api';
-import { Badge, Button, DataTable, Drawer, ErrorNote, Loading, Notice, Panel, useToast } from '../ui';
+import { Badge, Button, DataTable, Drawer, ErrorNote, KV, Loading, Notice, Panel, useToast } from '../ui';
+import { WeekCalendar } from './WeekCalendar';
 
 type Can = (p: string) => boolean;
 type Hours = Record<string, { start: number; end: number }[]>;
@@ -27,6 +28,7 @@ interface ServiceRow {
 interface AppointmentRow {
   id: string;
   service_name: string;
+  practitioner_id: string;
   practitioner_name: string;
   starts_at: string;
   ends_at: string;
@@ -59,6 +61,8 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [show, setShow] = useState('upcoming');
+  const [view, setView] = useState<'week' | 'list'>('week');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const { toast, toastNode } = useToast();
 
   const bookable = useMemo(() => (services.data?.services ?? []).filter((s) => s.duration_minutes && s.category !== 'academy'), [services.data]);
@@ -119,6 +123,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
   }
 
   const list = practitioners.data?.practitioners ?? [];
+  const selected = (appointments.data?.appointments ?? []).find((a) => a.id === selectedId) ?? null;
   const live = list.some((p) => p.active && Object.keys(p.weekly_hours ?? {}).length && p.service_ids.some((id) => bookable.some((s) => s.id === id && s.availability === 'available' && s.is_public)));
 
   return (
@@ -132,28 +137,13 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
         )}
       </Notice>
 
-      {practitioners.error && <ErrorNote message={practitioners.error} />}
-      <Panel title="Practitioners" actions={can('services:write') ? <Button size="sm" onClick={() => { setFormError(null); setEditing({ id: null, draft: { ...blank } }); }}>Add practitioner</Button> : undefined}>
-        {list.length === 0 ? (
-          <p className="text-sm text-muted">No practitioners yet. Add the people customers can book with, the services they deliver and the hours they work.</p>
-        ) : (
-          <ul className="divide-y divide-line">
-            {list.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="font-medium">{p.name} {p.title && <span className="font-normal text-muted">· {p.title}</span>} {!p.active && <Badge tone="neutral">Inactive</Badge>}</p>
-                  <p className="mt-0.5 text-xs text-muted">{hoursSummary(p.weekly_hours ?? {})}</p>
-                  <p className="mt-0.5 text-xs text-muted">{p.service_ids.length ? p.service_ids.map((id) => serviceName.get(id) ?? 'Removed service').join(', ') : 'No services assigned'}</p>
-                </div>
-                {can('services:write') && <Button size="sm" variant="secondary" onClick={() => { setFormError(null); setEditing({ id: p.id, draft: { name: p.name, title: p.title ?? '', service_ids: p.service_ids ?? [], weekly_hours: p.weekly_hours ?? {}, buffer_minutes: p.buffer_minutes, active: p.active } }); }}>Edit</Button>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
-
       {appointments.error && <ErrorNote message={appointments.error} />}
-      <DataTable
+      <div className="flex items-center gap-2" role="group" aria-label="Bookings view">
+        <Button size="sm" variant={view === 'week' ? 'primary' : 'secondary'} aria-pressed={view === 'week'} onClick={() => setView('week')}>Week calendar</Button>
+        <Button size="sm" variant={view === 'list' ? 'primary' : 'secondary'} aria-pressed={view === 'list'} onClick={() => setView('list')}>List</Button>
+      </div>
+      {view === 'week' && <WeekCalendar appointments={appointments.data?.appointments ?? []} practitioners={list} onSelect={(a) => setSelectedId(a.id)} />}
+      {view === 'list' && <DataTable
         rows={rows}
         initialSort={{ key: 'when', dir: show === 'upcoming' ? 'asc' : 'desc' }}
         search={(a) => `${a.customer?.full_name ?? ''} ${a.customer?.email ?? ''} ${a.customer?.phone ?? ''} ${a.service_name} ${a.practitioner_name}`}
@@ -184,7 +174,52 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
               ) : null,
           },
         ]}
-      />
+      />}
+
+      {practitioners.error && <ErrorNote message={practitioners.error} />}
+      <Panel title="Practitioners" actions={can('services:write') ? <Button size="sm" onClick={() => { setFormError(null); setEditing({ id: null, draft: { ...blank } }); }}>Add practitioner</Button> : undefined}>
+        {list.length === 0 ? (
+          <p className="text-sm text-muted">No practitioners yet. Add the people customers can book with, the services they deliver and the hours they work.</p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {list.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="font-medium">{p.name} {p.title && <span className="font-normal text-muted">· {p.title}</span>} {!p.active && <Badge tone="neutral">Inactive</Badge>}</p>
+                  <p className="mt-0.5 text-xs text-muted">{hoursSummary(p.weekly_hours ?? {})}</p>
+                  <p className="mt-0.5 text-xs text-muted">{p.service_ids.length ? p.service_ids.map((id) => serviceName.get(id) ?? 'Removed service').join(', ') : 'No services assigned'}</p>
+                </div>
+                {can('services:write') && <Button size="sm" variant="secondary" onClick={() => { setFormError(null); setEditing({ id: p.id, draft: { name: p.name, title: p.title ?? '', service_ids: p.service_ids ?? [], weekly_hours: p.weekly_hours ?? {}, buffer_minutes: p.buffer_minutes, active: p.active } }); }}>Edit</Button>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+
+      <Drawer open={Boolean(selected)} onClose={() => setSelectedId(null)} title={selected?.customer?.full_name ?? 'Booking'}>
+        {selected && (
+          <div className="space-y-5">
+            <KV
+              items={[
+                ['When', `${fmtDate(selected.starts_at)} – ${new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', hour: 'numeric', minute: '2-digit' }).format(new Date(selected.ends_at))}`],
+                ['Service', selected.service_name],
+                ['With', selected.practitioner_name],
+                ['Status', <Badge key="s" tone={STATUS_TONE[selected.status] ?? 'neutral'}>{label(selected.status)}</Badge>],
+                ['Mobile', selected.customer?.phone ? <a key="p" className="text-royal underline" href={`tel:${selected.customer.phone.replace(/\s/g, '')}`}>{selected.customer.phone}</a> : '–'],
+                ['Email', selected.customer?.email ? <a key="e" className="text-royal underline" href={`mailto:${selected.customer.email}`}>{selected.customer.email}</a> : '–'],
+                ['Customer note', selected.notes ?? '–'],
+              ]}
+            />
+            {can('bookings:write') && selected.status === 'confirmed' && (
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={() => setStatus(selected, 'completed')}>Mark completed</Button>
+                <Button size="sm" variant="secondary" onClick={() => setStatus(selected, 'no_show')}>Mark no-show</Button>
+                <Button size="sm" variant="danger" onClick={() => setStatus(selected, 'cancelled')}>Cancel booking</Button>
+              </div>
+            )}
+          </div>
+        )}
+      </Drawer>
 
       <Drawer open={Boolean(editing)} onClose={() => setEditing(null)} title={editing?.id ? 'Edit practitioner' : 'Add practitioner'}>
         {editing && (
