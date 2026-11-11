@@ -127,7 +127,7 @@ export const DEFAULTS: { [K in TableName]?: Partial<Tables[K]> } = {
   daily_summaries: { timezone: 'Australia/Melbourne', email_status: 'not_required' },
   admin_users: { full_name: null, role: 'staff', active: true, password_hash: null, last_login_at: null },
   practitioners: { title: null, service_ids: [], weekly_hours: {}, buffer_minutes: 0, active: true },
-  appointments: { service_id: null, status: 'confirmed', notes: null, cancel_reason: null, source: 'website' },
+  appointments: { service_id: null, status: 'confirmed', notes: null, cancel_reason: null, source: 'website', price_cents: null, final_price_cents: null, price_note: null },
 };
 
 /** Tables with an updated_at column. */

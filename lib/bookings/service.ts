@@ -241,6 +241,22 @@ async function upsertBookingCustomer(b: z.output<typeof BookingSchema>): Promise
   });
 }
 
+const isOverlapError = (e: unknown) => /23P01|appointments_no_overlap|conflicting key|exclusion/i.test(String(e));
+/** True when the database has not had the price columns added yet (migration 000004). */
+const isMissingPriceColumn = (e: unknown) => /price_cents|final_price_cents|price_note/.test(String(e)) && /PGRST204|42703|column|schema cache/i.test(String(e));
+export const dollars = (cents: number) => `$${cents % 100 ? (cents / 100).toFixed(2) : cents / 100}`;
+
+/** Inserts an appointment; if the price columns do not exist yet, the booking still goes through without a stored price. */
+async function insertAppointment(row: Partial<Appointment>): Promise<Appointment> {
+  try {
+    return await db().insert('appointments', row);
+  } catch (e) {
+    if (!isMissingPriceColumn(e)) throw e;
+    const { price_cents: _p, final_price_cents: _f, price_note: _n, ...rest } = row;
+    return db().insert('appointments', rest);
+  }
+}
+
 export interface BookingConfirmation {
   appointment: Appointment;
   practitioner: { id: string; name: string; title: string | null };
@@ -283,9 +299,10 @@ export async function createBooking(raw: unknown, nowMs = Date.now()): Promise<B
 
   const customer = await upsertBookingCustomer(b);
   const endsMs = startMs + service.duration_minutes * 60000;
+  const listPrice = service.price_status === 'on_enquiry' ? null : service.price_cents;
   let appointment: Appointment;
   try {
-    appointment = await repo.insert('appointments', {
+    appointment = await insertAppointment({
       practitioner_id: practitioner.id,
       service_id: service.id,
       service_name: service.name,
@@ -297,10 +314,11 @@ export async function createBooking(raw: unknown, nowMs = Date.now()): Promise<B
       // Card numbers are redacted; the form asks people not to include medical details.
       notes: b.notes ? checkInbound(b.notes).sanitized : null,
       source: 'website',
+      price_cents: listPrice,
     });
   } catch (e) {
     // The database's no-overlap rule rejected it: someone else booked the same time a moment earlier.
-    if (/23P01|appointments_no_overlap|conflicting key|exclusion/i.test(String(e))) throw new BookingError(409, SLOT_TAKEN);
+    if (isOverlapError(e)) throw new BookingError(409, SLOT_TAKEN);
     throw e;
   }
 
@@ -308,13 +326,13 @@ export async function createBooking(raw: unknown, nowMs = Date.now()): Promise<B
   await notify({
     type: 'booking_request',
     title: `Booked online: ${service.name} – ${when}`,
-    body: `${customer.full_name} booked ${service.name} with ${practitioner.name} for ${when}. This booking is confirmed – no action is needed unless you want to change it.\n${customer.email ?? ''}${customer.phone ? ` · ${customer.phone}` : ''}`,
+    body: `${customer.full_name} booked ${service.name}${listPrice != null ? ` (${dollars(listPrice)})` : ''} with ${practitioner.name} for ${when}. This booking is confirmed – no action is needed unless you want to change it.\n${customer.email ?? ''}${customer.phone ? ` · ${customer.phone}` : ''}`,
     linkPath: '/admin/bookings',
   });
 
   if (customer.email) {
     const address = await locationLine();
-    const lines = [`${service.name} (${service.duration_minutes} minutes)`, `With ${practitioner.name}`, when, address].filter(Boolean);
+    const lines = [`${service.name} (${service.duration_minutes} minutes)`, `With ${practitioner.name}`, when, listPrice != null ? `Price: ${dollars(listPrice)}` : '', address].filter(Boolean);
     await sendEmail({
       to: [customer.email],
       subject: `Your ASPARC booking is confirmed – ${when}`,
@@ -349,4 +367,48 @@ export async function updateAppointmentStatus(id: string, status: Appointment['s
     if (others.some((a) => Date.parse(a.starts_at) < e && Date.parse(a.blocked_until) > s)) throw new BookingError(409, 'That time now overlaps another confirmed booking.');
   }
   return repo.update('appointments', id, { status, cancel_reason: status === 'cancelled' ? (reason ?? null) : null });
+}
+
+/**
+ * Staff move a confirmed booking to a new day/time (Melbourne local time). The length stays the same.
+ * Staff may place it outside the usual hours or notice period – it is their diary – but never on top of
+ * another confirmed booking for the same practitioner.
+ */
+export async function moveAppointment(id: string, ymd: string, minutes: number): Promise<Appointment | null> {
+  const repo = db();
+  const current = await repo.get('appointments', id);
+  if (!current) return null;
+  if (current.status !== 'confirmed') throw new BookingError(422, 'Only confirmed bookings can be moved.');
+  if (!isYmd(ymd) || !Number.isInteger(minutes) || minutes < 0 || minutes > 1435) throw new BookingError(422, 'That is not a valid day or time.');
+
+  const lengthMs = Date.parse(current.ends_at) - Date.parse(current.starts_at);
+  const bufferMs = Date.parse(current.blocked_until) - Date.parse(current.ends_at);
+  const startMs = melbourneLocalToUtc(ymd, minutes).getTime();
+  const endMs = startMs + lengthMs;
+  const blockedMs = endMs + bufferMs;
+  if (startMs === Date.parse(current.starts_at)) return current;
+
+  const others = (await confirmedAppointments(current.practitioner_id)).filter((a) => a.id !== id);
+  if (others.some((a) => Date.parse(a.starts_at) < blockedMs && Date.parse(a.blocked_until) > startMs)) {
+    throw new BookingError(409, 'That time overlaps another booking for this practitioner.');
+  }
+  try {
+    return await repo.update('appointments', id, { starts_at: new Date(startMs).toISOString(), ends_at: new Date(endMs).toISOString(), blocked_until: new Date(blockedMs).toISOString() });
+  } catch (e) {
+    if (isOverlapError(e)) throw new BookingError(409, 'That time overlaps another booking for this practitioner.');
+    throw e;
+  }
+}
+
+/** Staff set the price charged for a booking (a discount or any other adjustment). Null restores the list price. */
+export async function setAppointmentPrice(id: string, finalPriceCents: number | null, note: string | null): Promise<Appointment | null> {
+  const repo = db();
+  const current = await repo.get('appointments', id);
+  if (!current) return null;
+  try {
+    return await repo.update('appointments', id, { final_price_cents: finalPriceCents, price_note: finalPriceCents === null ? null : note || null });
+  } catch (e) {
+    if (isMissingPriceColumn(e)) throw new BookingError(503, 'Prices on bookings need one database step first: run supabase/migrations/20261112000004_booking_prices.sql in the Supabase SQL Editor.');
+    throw e;
+  }
 }

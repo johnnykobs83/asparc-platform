@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, fmtDate, label, useApi } from '../api';
 import { Badge, Button, DataTable, Drawer, ErrorNote, KV, Loading, Notice, Panel, useToast } from '../ui';
-import { WeekCalendar } from './WeekCalendar';
+import { clockLabel, melbourneLocal, money, WeekCalendar } from './WeekCalendar';
 
 type Can = (p: string) => boolean;
 type Hours = Record<string, { start: number; end: number }[]>;
@@ -34,6 +34,10 @@ interface AppointmentRow {
   ends_at: string;
   status: string;
   notes: string | null;
+  list_price_cents: number | null;
+  final_price_cents: number | null;
+  charge_cents: number | null;
+  price_note: string | null;
   customer: { full_name: string; email: string | null; phone: string | null } | null;
 }
 
@@ -86,6 +90,51 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
     }
   }
 
+  const dayName = (ymd: string) => new Intl.DateTimeFormat('en-AU', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${ymd}T00:00:00Z`));
+
+  async function move(a: { id: string; customer: AppointmentRow['customer'] }, date: string, minutes: number) {
+    if (!window.confirm(`Move ${a.customer?.full_name ?? 'this booking'} to ${dayName(date)} at ${clockLabel(minutes)}?\n\nThe customer is not told automatically – please let them know.`)) return;
+    try {
+      await api(`/api/admin/appointments/${a.id}`, { method: 'PATCH', body: { move: { date, minutes } } });
+      toast(`Moved to ${dayName(date)}, ${clockLabel(minutes)}`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), 'err');
+    }
+    await appointments.reload();
+  }
+
+  // Editable copies of the selected booking's day/time and price.
+  const [moveDate, setMoveDate] = useState('');
+  const [moveTime, setMoveTime] = useState('');
+  const [priceInput, setPriceInput] = useState('');
+  const [priceNote, setPriceNote] = useState('');
+  const selectedRow = (appointments.data?.appointments ?? []).find((a) => a.id === selectedId) ?? null;
+  const selectedKey = selectedRow ? `${selectedRow.id}|${selectedRow.starts_at}|${selectedRow.final_price_cents}|${selectedRow.price_note}` : '';
+  useEffect(() => {
+    if (!selectedRow) return;
+    const at = melbourneLocal(selectedRow.starts_at);
+    setMoveDate(at.ymd);
+    setMoveTime(`${String(Math.floor(at.minutes / 60)).padStart(2, '0')}:${String(at.minutes % 60).padStart(2, '0')}`);
+    setPriceInput(selectedRow.charge_cents != null ? (selectedRow.charge_cents / 100).toFixed(2) : '');
+    setPriceNote(selectedRow.price_note ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey]);
+
+  async function savePrice(a: AppointmentRow, finalCents: number | null) {
+    try {
+      await api(`/api/admin/appointments/${a.id}`, { method: 'PATCH', body: { price: { final_price_cents: finalCents, note: priceNote.trim() || null } } });
+      toast(finalCents === null ? 'Price reset to the list price' : `Price set to ${money(finalCents)}`);
+      await appointments.reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), 'err');
+    }
+  }
+  const applyPercent = (a: AppointmentRow, pct: number) => {
+    if (a.list_price_cents == null) return;
+    setPriceInput(((a.list_price_cents * (100 - pct)) / 10000).toFixed(2));
+    if (!priceNote.trim()) setPriceNote(`${pct}% discount`);
+  };
+
   async function save() {
     if (!editing) return;
     setSaving(true);
@@ -123,7 +172,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
   }
 
   const list = practitioners.data?.practitioners ?? [];
-  const selected = (appointments.data?.appointments ?? []).find((a) => a.id === selectedId) ?? null;
+  const selected = selectedRow;
   const live = list.some((p) => p.active && Object.keys(p.weekly_hours ?? {}).length && p.service_ids.some((id) => bookable.some((s) => s.id === id && s.availability === 'available' && s.is_public)));
 
   return (
@@ -142,7 +191,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
         <Button size="sm" variant={view === 'week' ? 'primary' : 'secondary'} aria-pressed={view === 'week'} onClick={() => setView('week')}>Week calendar</Button>
         <Button size="sm" variant={view === 'list' ? 'primary' : 'secondary'} aria-pressed={view === 'list'} onClick={() => setView('list')}>List</Button>
       </div>
-      {view === 'week' && <WeekCalendar appointments={appointments.data?.appointments ?? []} practitioners={list} onSelect={(a) => setSelectedId(a.id)} />}
+      {view === 'week' && <WeekCalendar appointments={appointments.data?.appointments ?? []} practitioners={list} onSelect={(a) => setSelectedId(a.id)} onMove={can('bookings:write') ? move : undefined} />}
       {view === 'list' && <DataTable
         rows={rows}
         initialSort={{ key: 'when', dir: show === 'upcoming' ? 'asc' : 'desc' }}
@@ -160,6 +209,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
           { key: 'service', header: 'Service', render: (a) => a.service_name },
           { key: 'with', header: 'With', render: (a) => a.practitioner_name },
           { key: 'customer', header: 'Customer', render: (a) => (a.customer ? <span><span className="font-medium">{a.customer.full_name}</span><span className="block text-xs text-muted">{[a.customer.phone, a.customer.email].filter(Boolean).join(' · ')}</span>{a.notes && <span className="block max-w-xs text-xs text-muted">Note: {a.notes}</span>}</span> : '–') },
+          { key: 'price', header: 'Price', sortValue: (a) => a.charge_cents ?? -1, render: (a) => (a.charge_cents == null ? <span className="text-muted">On enquiry</span> : <span className="whitespace-nowrap tabular-nums">{money(a.charge_cents)}{a.final_price_cents != null && a.list_price_cents != null && a.final_price_cents !== a.list_price_cents && <span className="ml-1 text-xs text-muted line-through">{money(a.list_price_cents)}</span>}</span>) },
           { key: 'status', header: 'Status', render: (a) => <Badge tone={STATUS_TONE[a.status] ?? 'neutral'}>{label(a.status)}</Badge> },
           {
             key: 'actions',
@@ -208,8 +258,54 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
                 ['Mobile', selected.customer?.phone ? <a key="p" className="text-royal underline" href={`tel:${selected.customer.phone.replace(/\s/g, '')}`}>{selected.customer.phone}</a> : '–'],
                 ['Email', selected.customer?.email ? <a key="e" className="text-royal underline" href={`mailto:${selected.customer.email}`}>{selected.customer.email}</a> : '–'],
                 ['Customer note', selected.notes ?? '–'],
+                [
+                  'Price',
+                  selected.charge_cents == null ? (
+                    'On enquiry – no price set'
+                  ) : (
+                    <span key="pr">
+                      <strong>{money(selected.charge_cents)}</strong>
+                      {selected.final_price_cents != null && selected.list_price_cents != null && selected.final_price_cents !== selected.list_price_cents && (
+                        <span className="text-muted"> (list price {money(selected.list_price_cents)}{selected.price_note ? ` · ${selected.price_note}` : ''})</span>
+                      )}
+                    </span>
+                  ),
+                ],
               ]}
             />
+            {can('bookings:write') && selected.status === 'confirmed' && (
+              <fieldset className="rounded-lg border border-line p-4 text-sm">
+                <legend className="px-1 font-medium">Move this booking</legend>
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="block"><span className="text-xs text-muted">Day</span><input type="date" className="mt-1 block rounded-md border border-line px-2 py-1.5" value={moveDate} onChange={(e) => setMoveDate(e.target.value)} /></label>
+                  <label className="block"><span className="text-xs text-muted">Start time</span><input type="time" step={900} className="mt-1 block rounded-md border border-line px-2 py-1.5" value={moveTime} onChange={(e) => setMoveTime(e.target.value)} /></label>
+                  <Button size="sm" variant="secondary" disabled={!moveDate || !moveTime} onClick={() => move(selected, moveDate, Number(moveTime.slice(0, 2)) * 60 + Number(moveTime.slice(3, 5)))}>Move</Button>
+                </div>
+                <p className="mt-2 text-xs text-muted">You can also drag the booking on the week calendar. The customer is not told automatically.</p>
+              </fieldset>
+            )}
+            {can('bookings:write') && selected.status !== 'cancelled' && (
+              <fieldset className="rounded-lg border border-line p-4 text-sm">
+                <legend className="px-1 font-medium">Price and discount</legend>
+                <p className="text-xs text-muted">List price: {money(selected.list_price_cents) ?? 'on enquiry'}</p>
+                {selected.list_price_cents != null && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {[10, 15, 20, 50].map((pct) => (
+                      <Button key={pct} size="sm" variant="secondary" onClick={() => applyPercent(selected, pct)}>{pct}% off</Button>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-3 flex flex-wrap items-end gap-2">
+                  <label className="block"><span className="text-xs text-muted">Price to charge ($)</span><input type="number" min={0} step={0.5} inputMode="decimal" className="mt-1 block w-28 rounded-md border border-line px-2 py-1.5" value={priceInput} onChange={(e) => setPriceInput(e.target.value)} /></label>
+                  <label className="block min-w-0 flex-1"><span className="text-xs text-muted">Reason (optional)</span><input className="mt-1 block w-full rounded-md border border-line px-2 py-1.5" maxLength={300} placeholder="e.g. Club member discount" value={priceNote} onChange={(e) => setPriceNote(e.target.value)} /></label>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" disabled={priceInput === '' || Number.isNaN(Number(priceInput)) || Number(priceInput) < 0} onClick={() => savePrice(selected, Math.round(Number(priceInput) * 100))}>Save price</Button>
+                  {selected.final_price_cents != null && <Button size="sm" variant="secondary" onClick={() => savePrice(selected, null)}>Reset to list price</Button>}
+                </div>
+                <p className="mt-2 text-xs text-muted">This records what you will charge. No payment is taken through the website.</p>
+              </fieldset>
+            )}
             {can('bookings:write') && selected.status === 'confirmed' && (
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" onClick={() => setStatus(selected, 'completed')}>Mark completed</Button>

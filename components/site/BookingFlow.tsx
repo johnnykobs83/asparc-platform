@@ -26,6 +26,7 @@ interface Confirmation {
   when: string;
   service: string;
   practitioner: string;
+  price_cents?: number | null;
 }
 
 const TZ = 'Australia/Melbourne';
@@ -160,6 +161,7 @@ export function BookingFlow() {
           <div><dt className="text-xs uppercase tracking-wider text-muted">Service</dt><dd className="font-semibold">{done.service}</dd></div>
           <div><dt className="text-xs uppercase tracking-wider text-muted">When</dt><dd className="font-semibold">{done.when}</dd></div>
           <div><dt className="text-xs uppercase tracking-wider text-muted">With</dt><dd className="font-semibold">{done.practitioner}</dd></div>
+          {done.price_cents != null && <div><dt className="text-xs uppercase tracking-wider text-muted">Price</dt><dd className="font-semibold">${done.price_cents % 100 ? (done.price_cents / 100).toFixed(2) : done.price_cents / 100}</dd></div>}
           <div><dt className="text-xs uppercase tracking-wider text-muted">Reference</dt><dd className="font-semibold">{done.reference}</dd></div>
         </dl>
         <p className="mt-6 text-sm text-muted">

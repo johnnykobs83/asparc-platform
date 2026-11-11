@@ -37,16 +37,30 @@ export const PractitionerPatch = z.object(Fields).partial().strict();
 /** Upcoming and recent appointments with the customer and practitioner names staff need. */
 export async function listAppointmentsForAdmin() {
   const repo = db();
-  const [appointments, practitioners] = await Promise.all([
+  const [appointments, practitioners, services] = await Promise.all([
     repo.list('appointments', { orderBy: 'starts_at', ascending: false, limit: 500 }),
     repo.list('practitioners', { limit: 200 }),
+    repo.list('services', { limit: 500 }),
   ]);
+  // Bookings made before prices were stored fall back to the service's current price.
+  const currentPrice = new Map(services.map((s) => [s.id, s.price_status === 'on_enquiry' ? null : s.price_cents]));
   const pName = new Map(practitioners.map((p) => [p.id, p.name]));
   const customerIds = [...new Set(appointments.map((a) => a.customer_id))];
   const found = await Promise.all(customerIds.map((id) => repo.get('customers', id)));
   const customers = new Map(found.filter((c) => c !== null).map((c) => [c.id, c]));
   return appointments.map((a) => {
     const c = customers.get(a.customer_id);
-    return { ...a, practitioner_name: pName.get(a.practitioner_id) ?? 'Unknown', customer: c ? { full_name: c.full_name, email: c.email, phone: c.phone } : null };
+    const list_price_cents = a.price_cents ?? (a.service_id ? (currentPrice.get(a.service_id) ?? null) : null);
+    const final_price_cents = a.final_price_cents ?? null;
+    return {
+      ...a,
+      list_price_cents,
+      final_price_cents,
+      price_note: a.price_note ?? null,
+      /** What the customer is charged: the adjusted price if staff set one, otherwise the list price. */
+      charge_cents: final_price_cents ?? list_price_cents,
+      practitioner_name: pName.get(a.practitioner_id) ?? 'Unknown',
+      customer: c ? { full_name: c.full_name, email: c.email, phone: c.phone } : null,
+    };
   });
 }

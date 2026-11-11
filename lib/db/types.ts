@@ -337,6 +337,11 @@ export interface Appointment {
   status: 'confirmed' | 'cancelled' | 'completed' | 'no_show';
   notes: string | null;
   cancel_reason: string | null;
+  /** The service's list price when booked (null when priced on enquiry). Absent until migration 000004 is applied. */
+  price_cents?: number | null;
+  /** Price after a staff discount or adjustment; null means the list price applies. */
+  final_price_cents?: number | null;
+  price_note?: string | null;
   source: string;
   created_at: Iso;
   updated_at: Iso;

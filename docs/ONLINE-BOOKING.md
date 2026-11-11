@@ -51,6 +51,26 @@ overlaps another for the same practitioner.
   Cancelling frees the time for other customers. The customer is **not**
   notified automatically – contact them.
 
+## Week calendar, moving bookings and prices
+
+- **Dashboard → Bookings** opens on a week calendar: all seven days on one
+  page, bookings drawn at their time, bookable hours in white.
+- **Move a booking:** drag it to another day or time (it snaps to quarter
+  hours), or open it and use *Move this booking*. Staff can place a booking
+  outside the usual hours, but never on top of another booking for the same
+  practitioner. The customer is **not** told automatically.
+- **Prices:** each booking stores the service's list price at the time it was
+  made, so later price changes do not alter existing bookings. Open a booking
+  to set the price you will charge (quick 10/15/20/50% buttons or any amount)
+  with an optional reason; *Reset to list price* undoes it. An adjusted price
+  is marked with * on the calendar. This is a record only – no payment is
+  taken through the website.
+- **Dashboard → Overview** lists today's bookings in time order.
+- Storing prices needs `supabase/migrations/20261112000004_booking_prices.sql`
+  run once in the Supabase SQL Editor. Until then bookings and moves still
+  work, prices shown fall back to the service's current price, and saving an
+  adjusted price reports that the database step is needed.
+
 ## Not built yet
 
 - Customers cannot cancel or reschedule online; they contact ASPARC.

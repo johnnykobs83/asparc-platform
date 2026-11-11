@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { fmtMoney, useApi } from '../api';
 import { BarList, ColumnChart } from '../charts';
 import { ErrorNote, Loading, PageHeader, Panel, Select, StatCard } from '../ui';
+import { TodayBookings } from './TodayBookings';
 
 interface OverviewData {
   periodDays: number;
@@ -36,6 +37,9 @@ export function Overview() {
         description="Live figures from website enquiries, ASPARC AI conversations and staff updates. Nothing here is estimated or sample data."
         actions={<Select label="Period" value={days} onChange={setDays} options={[['7', 'Last 7 days'], ['30', 'Last 30 days'], ['90', 'Last 90 days']]} />}
       />
+      <div className="mb-6">
+        <TodayBookings />
+      </div>
       {error && <ErrorNote message={error} />}
       {loading && !data && <Loading />}
       {data && (

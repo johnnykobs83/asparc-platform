@@ -22,6 +22,7 @@ export const POST = handler(async (req) => {
         when: c.when,
         service: c.appointment.service_name,
         practitioner: c.practitioner.name,
+        price_cents: c.appointment.price_cents ?? null,
         starts_at: c.appointment.starts_at,
         ends_at: c.appointment.ends_at,
       },
