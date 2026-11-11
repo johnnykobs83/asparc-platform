@@ -10,3 +10,7 @@ out
 tools/preview/out
 next-env.d.ts
 tsconfig.tsbuildinfo
+
+# Original design files and flyers – kept on this PC, never published with the site
+public/images/ChatGPT Image*
+public/images/ASPARC_Football_Performance_*

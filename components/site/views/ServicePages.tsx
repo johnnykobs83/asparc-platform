@@ -84,11 +84,40 @@ export function SportsPerformanceView({ site }: { site: PublicSiteData }) {
 }
 
 /* ---------------------------------------------------------------- */
+// Age-group names, aims and training focus are taken from ASPARC's own program flyers.
 const AGE_DETAILS = [
-  ['8–10', 'Foundations', 'Fundamental movement skills, coordination, balance and running technique – delivered through engaging, game-based training.'],
-  ['11–13', 'Athletic development', 'Speed, agility and coordination with an introduction to bodyweight strength and correct technique.'],
-  ['14–16', 'Strength & power', 'Building strength foundations, jumping, landing and sprint mechanics as athletes grow.'],
-  ['16–18', 'Performance preparation', 'Structured strength, power and speed training to prepare for senior and higher-level competition.'],
+  {
+    age: '8–10',
+    title: 'Foundation Movers',
+    text: 'Build movement confidence and a lifelong love of physical activity.',
+    focus: ['Running mechanics', 'Balance and coordination', 'Jumping and landing', 'Sprint technique and agility', 'Core control and confidence', 'Fun, active competition'],
+    image: '/images/academy-8-10.jpg',
+    position: 'object-[50%_30%]',
+  },
+  {
+    age: '11–13',
+    title: 'Athletic Development',
+    text: 'Build strong movement and strength foundations through the growth years.',
+    focus: ['Sprint technique', 'Change of direction', 'Controlled deceleration', 'Basic strength and mobility', 'Landing control and core strength', 'Injury prevention foundations'],
+    image: '/images/academy-11-13.jpg',
+    position: 'object-[70%_45%]',
+  },
+  {
+    age: '14–16',
+    title: 'Performance Development',
+    text: 'Build the strength, speed and power required for higher-level football.',
+    focus: ['Acceleration and sprint speed', 'Strength and relative strength', 'Explosive power', 'Change of direction', 'Football conditioning', 'Resilience and injury prevention'],
+    image: '/images/academy-14-16.jpg',
+    position: 'object-[50%_40%]',
+  },
+  {
+    age: '16–18',
+    title: 'Elite Football Performance',
+    text: 'Prepare for the physical demands of senior football and academy pathways.',
+    focus: ['Maximum strength and power', 'Sprint speed', 'Repeat-sprint ability', 'Football conditioning and recovery', 'Performance monitoring and testing', 'Resilience and injury prevention'],
+    image: '/images/academy-16-18.jpg',
+    position: 'object-[60%_25%]',
+  },
 ] as const;
 
 export function AcademyView({ site }: { site: PublicSiteData }) {
@@ -132,15 +161,28 @@ export function AcademyView({ site }: { site: PublicSiteData }) {
       <Section tone="mist">
         <SectionHeading eyebrow="Age groups" title="The right training at the right stage" />
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {AGE_DETAILS.map(([age, title, text]) => (
-            <article key={age} className="card overflow-hidden">
-              <div className="speed-lines bg-royal px-6 py-6 text-white">
-                <p className="font-display text-5xl font-extrabold leading-none">{age}</p>
-                <p className="mt-1 text-xs uppercase tracking-widest text-white/70">years</p>
+          {AGE_DETAILS.map((g) => (
+            <article key={g.age} className="card flex flex-col overflow-hidden">
+              <div className="relative aspect-[4/5] bg-charcoal">
+                {/* Decorative: the heading below names the age group. */}
+                <img src={g.image} alt="" loading="lazy" width={800} height={1000} className={`absolute inset-0 h-full w-full object-cover ${g.position}`} />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-charcoal via-charcoal/70 to-transparent px-6 pb-5 pt-16 text-white">
+                  <p className="font-display text-5xl font-extrabold leading-none">{g.age}</p>
+                  <p className="mt-1 text-xs uppercase tracking-widest text-white/75">years</p>
+                </div>
               </div>
-              <div className="p-6">
-                <h3 className="text-xl uppercase">{title}</h3>
-                <p className="mt-2 text-[15px] leading-relaxed text-muted">{text}</p>
+              <div className="flex-1 p-6">
+                <h3 className="text-xl uppercase">{g.title}</h3>
+                <p className="mt-2 text-[15px] leading-relaxed text-muted">{g.text}</p>
+                <p className="eyebrow mt-5">Training focus</p>
+                <ul className="mt-2 space-y-1.5 text-sm text-charcoal">
+                  {g.focus.map((item) => (
+                    <li key={item} className="flex gap-2">
+                      <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-royal" aria-hidden="true" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
               </div>
             </article>
           ))}
