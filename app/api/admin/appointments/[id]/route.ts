@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { BookingError, moveAppointment, setAppointmentPrice, updateAppointmentStatus } from '@/lib/bookings/service';
+import { emailCustomerAboutBooking, type CustomerEmailStatus } from '@/lib/bookings/staff';
+import { db } from '@/lib/db';
 import type { Appointment } from '@/lib/db/types';
 import { error, handler, json, readJson, requireAdmin } from '@/lib/http/respond';
 
@@ -23,11 +25,25 @@ export const PATCH = handler(async (req, { params }: { params: Promise<{ id: str
   const p = Patch.parse(await readJson(req));
   const id = (await params).id;
   try {
+    const before = await db().get('appointments', id);
+    if (!before) return error('Appointment not found', 404);
     let updated: Appointment | null;
-    if (p.move) updated = await moveAppointment(id, p.move.date, p.move.minutes);
-    else if (p.price) updated = await setAppointmentPrice(id, p.price.final_price_cents, p.price.note ?? null);
-    else updated = await updateAppointmentStatus(id, p.status!, p.cancel_reason);
-    return updated ? json({ appointment: updated }) : error('Appointment not found', 404);
+    // The customer is emailed when their booking is moved, cancelled or re-priced.
+    let customerEmail: CustomerEmailStatus | null = null;
+    if (p.move) {
+      updated = await moveAppointment(id, p.move.date, p.move.minutes);
+      if (updated && updated.starts_at !== before.starts_at) customerEmail = await emailCustomerAboutBooking('moved', updated, { previousStart: before.starts_at });
+    } else if (p.price) {
+      updated = await setAppointmentPrice(id, p.price.final_price_cents, p.price.note ?? null);
+      const was = before.final_price_cents ?? before.price_cents ?? null;
+      const now = updated ? (updated.final_price_cents ?? updated.price_cents ?? null) : null;
+      if (updated && was !== now) customerEmail = await emailCustomerAboutBooking('price', updated);
+    } else {
+      updated = await updateAppointmentStatus(id, p.status!, p.cancel_reason);
+      if (updated && p.status === 'cancelled' && before.status !== 'cancelled') customerEmail = await emailCustomerAboutBooking('cancelled', updated);
+      if (updated && p.status === 'confirmed' && before.status === 'cancelled') customerEmail = await emailCustomerAboutBooking('confirmed', updated);
+    }
+    return updated ? json({ appointment: updated, customer_email: customerEmail }) : error('Appointment not found', 404);
   } catch (e) {
     if (e instanceof BookingError) return error(e.message, e.status);
     throw e;

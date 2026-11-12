@@ -59,7 +59,7 @@ const STATUS_TONE: Record<string, 'green' | 'neutral' | 'red' | 'amber'> = { con
 /** Online self-service bookings: who can be booked and when, plus the appointments customers have made. */
 export function OnlineBookingPanel({ can }: { can: Can }) {
   const practitioners = useApi<{ ready: boolean; practitioners: PractitionerRow[] }>('/api/admin/practitioners');
-  const appointments = useApi<{ ready: boolean; appointments: AppointmentRow[] }>('/api/admin/appointments');
+  const appointments = useApi<{ ready: boolean; email_ready?: boolean; appointments: AppointmentRow[] }>('/api/admin/appointments');
   const services = useApi<{ services: ServiceRow[] }>('/api/admin/services');
   const [editing, setEditing] = useState<{ id: string | null; draft: Omit<PractitionerRow, 'id'> } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -79,11 +79,19 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
     return all;
   }, [appointments.data, show]);
 
+  type EmailStatus = 'sent' | 'not_configured' | 'no_email' | 'failed' | null | undefined;
+  /** Tells staff what happened with the customer's email after a change. */
+  const emailNote = (st: EmailStatus) =>
+    st === 'sent' ? ' The customer has been emailed.' : st === 'no_email' ? ' No email on file – please let the customer know.' : st === 'not_configured' ? ' Email is not set up yet – please let the customer know.' : st === 'failed' ? ' The email could not be sent – please let the customer know.' : '';
+  const emailReady = Boolean(appointments.data?.email_ready);
+  /** What the confirmation prompt says about telling the customer. */
+  const willTell = (a: { customer: AppointmentRow['customer'] }) => (emailReady && a.customer?.email ? 'The customer will be emailed.' : 'The customer will not be emailed – please let them know.');
+
   async function setStatus(a: AppointmentRow, status: string) {
-    if (status === 'cancelled' && !window.confirm(`Cancel ${a.customer?.full_name ?? 'this'} booking for ${fmtDate(a.starts_at)}? The time becomes available to other customers. You will need to let the customer know.`)) return;
+    if (status === 'cancelled' && !window.confirm(`Cancel ${a.customer?.full_name ?? 'this'} booking for ${fmtDate(a.starts_at)}? The time becomes available to other customers.\n\n${willTell(a)}`)) return;
     try {
-      await api(`/api/admin/appointments/${a.id}`, { method: 'PATCH', body: { status } });
-      toast(`Booking marked ${label(status).toLowerCase()}`);
+      const r = await api<{ customer_email?: EmailStatus }>(`/api/admin/appointments/${a.id}`, { method: 'PATCH', body: { status } });
+      toast(`Booking marked ${label(status).toLowerCase()}.${emailNote(r.customer_email)}`, r.customer_email === 'failed' ? 'err' : 'ok');
       await appointments.reload();
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), 'err');
@@ -93,10 +101,10 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
   const dayName = (ymd: string) => new Intl.DateTimeFormat('en-AU', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${ymd}T00:00:00Z`));
 
   async function move(a: { id: string; customer: AppointmentRow['customer'] }, date: string, minutes: number) {
-    if (!window.confirm(`Move ${a.customer?.full_name ?? 'this booking'} to ${dayName(date)} at ${clockLabel(minutes)}?\n\nThe customer is not told automatically – please let them know.`)) return;
+    if (!window.confirm(`Move ${a.customer?.full_name ?? 'this booking'} to ${dayName(date)} at ${clockLabel(minutes)}?\n\n${willTell(a)}`)) return;
     try {
-      await api(`/api/admin/appointments/${a.id}`, { method: 'PATCH', body: { move: { date, minutes } } });
-      toast(`Moved to ${dayName(date)}, ${clockLabel(minutes)}`);
+      const r = await api<{ customer_email?: EmailStatus }>(`/api/admin/appointments/${a.id}`, { method: 'PATCH', body: { move: { date, minutes } } });
+      toast(`Moved to ${dayName(date)}, ${clockLabel(minutes)}.${emailNote(r.customer_email)}`, r.customer_email === 'failed' ? 'err' : 'ok');
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), 'err');
     }
@@ -122,8 +130,8 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
 
   async function savePrice(a: AppointmentRow, finalCents: number | null) {
     try {
-      await api(`/api/admin/appointments/${a.id}`, { method: 'PATCH', body: { price: { final_price_cents: finalCents, note: priceNote.trim() || null } } });
-      toast(finalCents === null ? 'Price reset to the list price' : `Price set to ${money(finalCents)}`);
+      const r = await api<{ customer_email?: EmailStatus }>(`/api/admin/appointments/${a.id}`, { method: 'PATCH', body: { price: { final_price_cents: finalCents, note: priceNote.trim() || null } } });
+      toast(`${finalCents === null ? 'Price reset to the list price' : `Price set to ${money(finalCents)}`}.${emailNote(r.customer_email)}`, r.customer_email === 'failed' ? 'err' : 'ok');
       await appointments.reload();
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), 'err');
@@ -134,6 +142,60 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
     setPriceInput(((a.list_price_cents * (100 - pct)) / 10000).toFixed(2));
     if (!priceNote.trim()) setPriceNote(`${pct}% discount`);
   };
+
+  interface NewBooking { practitioner_id: string; service_id: string; service_name: string; date: string; time: string; duration: string; full_name: string; email: string; phone: string; notes: string; price: string }
+  const [adding, setAdding] = useState<NewBooking | null>(null);
+  const [addError, setAddError] = useState<{ message: string; fields: Record<string, string> } | null>(null);
+  const [addSaving, setAddSaving] = useState(false);
+  const activePractitioners = (practitioners.data?.practitioners ?? []).filter((x) => x.active);
+  const allServices = services.data?.services ?? [];
+
+  function startAdd(date: string, minutes: number) {
+    const first = activePractitioners[0];
+    if (!first) {
+      toast('Add a practitioner first.', 'err');
+      return;
+    }
+    setAddError(null);
+    setAdding({ practitioner_id: first.id, service_id: '', service_name: '', date, time: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`, duration: '', full_name: '', email: '', phone: '', notes: '', price: '' });
+  }
+  const patchAdd = (v: Partial<NewBooking>) => setAdding((a) => (a ? { ...a, ...v } : a));
+  /** Choosing a service fills in its usual length and price; staff can change both. */
+  function chooseService(id: string) {
+    const svc = allServices.find((x) => x.id === id) as (ServiceRow & { price_cents?: number | null; price_status?: string }) | undefined;
+    patchAdd({ service_id: id, duration: svc?.duration_minutes ? String(svc.duration_minutes) : '', price: svc && svc.price_status !== 'on_enquiry' && svc.price_cents != null ? (svc.price_cents / 100).toFixed(2) : '' });
+  }
+
+  async function submitAdd() {
+    if (!adding || addSaving) return;
+    setAddSaving(true);
+    setAddError(null);
+    try {
+      const r = await api<{ customer_email?: EmailStatus }>('/api/admin/appointments', {
+        body: {
+          practitioner_id: adding.practitioner_id,
+          service_id: adding.service_id || null,
+          service_name: adding.service_id ? undefined : adding.service_name.trim() || undefined,
+          date: adding.date,
+          minutes: Number(adding.time.slice(0, 2)) * 60 + Number(adding.time.slice(3, 5)),
+          duration_minutes: adding.duration ? Number(adding.duration) : undefined,
+          full_name: adding.full_name,
+          email: adding.email.trim() || undefined,
+          phone: adding.phone.trim() || undefined,
+          notes: adding.notes.trim() || undefined,
+          price_cents: adding.price === '' ? undefined : Math.round(Number(adding.price) * 100),
+        },
+      });
+      setAdding(null);
+      toast(`Booking added.${emailNote(r.customer_email)}`, r.customer_email === 'failed' ? 'err' : 'ok');
+      await appointments.reload();
+    } catch (e) {
+      const fields = (e as { fields?: Record<string, string> }).fields ?? {};
+      setAddError({ message: e instanceof Error ? e.message : String(e), fields });
+    } finally {
+      setAddSaving(false);
+    }
+  }
 
   async function save() {
     if (!editing) return;
@@ -191,7 +253,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
         <Button size="sm" variant={view === 'week' ? 'primary' : 'secondary'} aria-pressed={view === 'week'} onClick={() => setView('week')}>Week calendar</Button>
         <Button size="sm" variant={view === 'list' ? 'primary' : 'secondary'} aria-pressed={view === 'list'} onClick={() => setView('list')}>List</Button>
       </div>
-      {view === 'week' && <WeekCalendar appointments={appointments.data?.appointments ?? []} practitioners={list} onSelect={(a) => setSelectedId(a.id)} onMove={can('bookings:write') ? move : undefined} />}
+      {view === 'week' && <WeekCalendar appointments={appointments.data?.appointments ?? []} practitioners={list} onSelect={(a) => setSelectedId(a.id)} onMove={can('bookings:write') ? move : undefined} onAdd={can('bookings:write') ? startAdd : undefined} />}
       {view === 'list' && <DataTable
         rows={rows}
         initialSort={{ key: 'when', dir: show === 'upcoming' ? 'asc' : 'desc' }}
@@ -246,6 +308,70 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
         )}
       </Panel>
 
+      <Drawer open={Boolean(adding)} onClose={() => setAdding(null)} title="Add a booking">
+        {adding && (
+          <div className="space-y-4 text-sm">
+            <p className="text-xs text-muted">{emailReady ? 'The customer is emailed a confirmation if you enter their email address.' : 'Customer emails are not set up yet, so no confirmation will be sent – let the customer know yourself.'}</p>
+            <label className="block">
+              <span className="font-medium">Practitioner</span>
+              <select className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2" value={adding.practitioner_id} onChange={(e) => patchAdd({ practitioner_id: e.target.value })}>
+                {activePractitioners.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="font-medium">Service</span>
+              <select className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2" value={adding.service_id} onChange={(e) => chooseService(e.target.value)}>
+                <option value="">Other (type below)</option>
+                {allServices.filter((x) => x.category !== 'academy').map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </select>
+            </label>
+            {!adding.service_id && (
+              <label className="block">
+                <span className="font-medium">What is the booking for?</span>
+                <input className="mt-1 w-full rounded-md border border-line px-3 py-2" maxLength={160} value={adding.service_name} onChange={(e) => patchAdd({ service_name: e.target.value })} />
+                {addError?.fields.service_name && <span className="mt-1 block text-xs text-danger">{addError.fields.service_name}</span>}
+              </label>
+            )}
+            <div className="flex flex-wrap gap-3">
+              <label className="block"><span className="font-medium">Day</span><input type="date" className="mt-1 block rounded-md border border-line px-2 py-2" value={adding.date} onChange={(e) => patchAdd({ date: e.target.value })} /></label>
+              <label className="block"><span className="font-medium">Start</span><input type="time" step={900} className="mt-1 block rounded-md border border-line px-2 py-2" value={adding.time} onChange={(e) => patchAdd({ time: e.target.value })} /></label>
+              <label className="block"><span className="font-medium">Minutes</span><input type="number" min={5} max={480} step={5} className="mt-1 block w-24 rounded-md border border-line px-2 py-2" value={adding.duration} onChange={(e) => patchAdd({ duration: e.target.value })} /></label>
+            </div>
+            {addError?.fields.duration_minutes && <p className="text-xs text-danger">{addError.fields.duration_minutes}</p>}
+            <label className="block">
+              <span className="font-medium">Customer name</span>
+              <input className="mt-1 w-full rounded-md border border-line px-3 py-2" autoComplete="off" value={adding.full_name} onChange={(e) => patchAdd({ full_name: e.target.value })} />
+              {addError?.fields.full_name && <span className="mt-1 block text-xs text-danger">{addError.fields.full_name}</span>}
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="font-medium">Email</span>
+                <input type="email" className="mt-1 w-full rounded-md border border-line px-3 py-2" autoComplete="off" value={adding.email} onChange={(e) => patchAdd({ email: e.target.value })} />
+                {addError?.fields.email && <span className="mt-1 block text-xs text-danger">{addError.fields.email}</span>}
+              </label>
+              <label className="block">
+                <span className="font-medium">Mobile</span>
+                <input type="tel" className="mt-1 w-full rounded-md border border-line px-3 py-2" autoComplete="off" value={adding.phone} onChange={(e) => patchAdd({ phone: e.target.value })} />
+                {addError?.fields.phone && <span className="mt-1 block text-xs text-danger">{addError.fields.phone}</span>}
+              </label>
+            </div>
+            <label className="block">
+              <span className="font-medium">Price to charge ($)</span>
+              <input type="number" min={0} step={0.5} inputMode="decimal" className="mt-1 block w-32 rounded-md border border-line px-3 py-2" placeholder="List price" value={adding.price} onChange={(e) => patchAdd({ price: e.target.value })} />
+            </label>
+            <label className="block">
+              <span className="font-medium">Note (optional)</span>
+              <textarea rows={2} maxLength={1000} className="mt-1 w-full rounded-md border border-line px-3 py-2" value={adding.notes} onChange={(e) => patchAdd({ notes: e.target.value })} />
+            </label>
+            {addError && <p className="text-danger" role="alert">{addError.message}</p>}
+            <div className="flex gap-2">
+              <Button disabled={addSaving || adding.full_name.trim().length < 2 || !adding.date || !adding.time} onClick={submitAdd}>{addSaving ? 'Adding…' : 'Add booking'}</Button>
+              <Button variant="secondary" onClick={() => setAdding(null)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+      </Drawer>
+
       <Drawer open={Boolean(selected)} onClose={() => setSelectedId(null)} title={selected?.customer?.full_name ?? 'Booking'}>
         {selected && (
           <div className="space-y-5">
@@ -281,7 +407,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
                   <label className="block"><span className="text-xs text-muted">Start time</span><input type="time" step={900} className="mt-1 block rounded-md border border-line px-2 py-1.5" value={moveTime} onChange={(e) => setMoveTime(e.target.value)} /></label>
                   <Button size="sm" variant="secondary" disabled={!moveDate || !moveTime} onClick={() => move(selected, moveDate, Number(moveTime.slice(0, 2)) * 60 + Number(moveTime.slice(3, 5)))}>Move</Button>
                 </div>
-                <p className="mt-2 text-xs text-muted">You can also drag the booking on the week calendar. The customer is not told automatically.</p>
+                <p className="mt-2 text-xs text-muted">You can also drag the booking on the week calendar. {willTell(selected)}</p>
               </fieldset>
             )}
             {can('bookings:write') && selected.status !== 'cancelled' && (

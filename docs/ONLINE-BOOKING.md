@@ -48,8 +48,7 @@ overlaps another for the same practitioner.
   configured, the customer also receives a confirmation email and management
   can be emailed the notification.
 - Staff can mark a booking **Completed**, **No-show** or **Cancel** it.
-  Cancelling frees the time for other customers. The customer is **not**
-  notified automatically – contact them.
+  Cancelling frees the time for other customers.
 
 ## Week calendar, moving bookings and prices
 
@@ -58,7 +57,16 @@ overlaps another for the same practitioner.
 - **Move a booking:** drag it to another day or time (it snaps to quarter
   hours), or open it and use *Move this booking*. Staff can place a booking
   outside the usual hours, but never on top of another booking for the same
-  practitioner. The customer is **not** told automatically.
+  practitioner.
+- **Add a booking:** click an empty time on the calendar, or *+ Add booking*.
+  Choose the practitioner and a listed service (its length and price fill in)
+  or type a one-off booking with its own name, length and price. The customer
+  needs a name and an email or mobile.
+- **Customer emails:** the customer is emailed when a booking is made (online
+  or by staff), moved, cancelled or re-priced. The dashboard says after each
+  change whether the email went out. Nothing is sent if Resend email is not
+  configured or the customer has no email address – staff are told to contact
+  the customer instead. The internal reason for a price change is never sent.
 - **Prices:** each booking stores the service's list price at the time it was
   made, so later price changes do not alter existing bookings. Open a booking
   to set the price you will charge (quick 10/15/20/50% buttons or any amount)
@@ -76,7 +84,7 @@ overlaps another for the same practitioner.
 - Customers cannot cancel or reschedule online; they contact ASPARC.
 - No online payment at booking. (Stripe is prepared separately – see
   `docs/PHASE-3-4.md`.)
-- No reminders by SMS or email.
+- No reminders by SMS or email before an appointment.
 - No one-off days off or holidays: to block time, shorten the practitioner's
   hours or switch them off for online booking.
 - Each day has one working-hours block per practitioner in the dashboard

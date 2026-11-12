@@ -241,13 +241,13 @@ async function upsertBookingCustomer(b: z.output<typeof BookingSchema>): Promise
   });
 }
 
-const isOverlapError = (e: unknown) => /23P01|appointments_no_overlap|conflicting key|exclusion/i.test(String(e));
+export const isOverlapError = (e: unknown) => /23P01|appointments_no_overlap|conflicting key|exclusion/i.test(String(e));
 /** True when the database has not had the price columns added yet (migration 000004). */
 const isMissingPriceColumn = (e: unknown) => /price_cents|final_price_cents|price_note/.test(String(e)) && /PGRST204|42703|column|schema cache/i.test(String(e));
 export const dollars = (cents: number) => `$${cents % 100 ? (cents / 100).toFixed(2) : cents / 100}`;
 
 /** Inserts an appointment; if the price columns do not exist yet, the booking still goes through without a stored price. */
-async function insertAppointment(row: Partial<Appointment>): Promise<Appointment> {
+export async function insertAppointment(row: Partial<Appointment>): Promise<Appointment> {
   try {
     return await db().insert('appointments', row);
   } catch (e) {

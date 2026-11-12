@@ -60,11 +60,14 @@ export function WeekCalendar({
   practitioners,
   onSelect,
   onMove,
+  onAdd,
 }: {
   appointments: CalendarAppointment[];
   practitioners: CalendarPractitioner[];
   onSelect: (a: CalendarAppointment) => void;
   onMove?: (a: CalendarAppointment, date: string, minutes: number) => void;
+  /** Staff add a booking: called with the day and start time clicked (or today when the button is used). */
+  onAdd?: (date: string, minutes: number) => void;
 }) {
   const today = melbourneLocal(new Date()).ymd;
   const [weekStart, setWeekStart] = useState(() => mondayOf(today));
@@ -135,6 +138,7 @@ export function WeekCalendar({
           <label className="mr-2 inline-flex items-center gap-1.5 text-xs text-muted">
             <input type="checkbox" className="accent-royal" checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} /> Show cancelled
           </label>
+          {onAdd && <Button size="sm" onClick={() => onAdd(today >= days[0] && today <= days[6] ? today : days[0], 600)}>+ Add booking</Button>}
           <Button size="sm" variant="secondary" onClick={() => setWeekStart(addDays(weekStart, -7))}>← Previous</Button>
           <Button size="sm" variant="secondary" disabled={weekStart === mondayOf(today)} onClick={() => setWeekStart(mondayOf(today))}>This week</Button>
           <Button size="sm" variant="secondary" onClick={() => setWeekStart(addDays(weekStart, 7))}>Next →</Button>
@@ -165,7 +169,13 @@ export function WeekCalendar({
               <div
                 key={d}
                 data-day={d}
-                className="relative border-l border-line bg-mist/60"
+                onClick={(e) => {
+                  // A click on empty space starts a new booking at that time (rounded to the half hour).
+                  if (!onAdd || (e.target as HTMLElement).closest('button')) return;
+                  const raw = from + ((e.clientY - e.currentTarget.getBoundingClientRect().top) / ROW) * 30;
+                  onAdd(d, Math.max(from, Math.min(to - 30, Math.floor(raw / 30) * 30)));
+                }}
+                className={`relative border-l border-line bg-mist/60 ${onAdd ? 'cursor-cell' : ''}`}
                 style={{ height }}
                 onDragOver={(e) => {
                   const m = dropMinutes(e);
@@ -238,7 +248,7 @@ export function WeekCalendar({
         </div>
       </div>
       <p className="border-t border-line px-4 py-2 text-xs text-muted">
-        White areas are your practitioners&apos; bookable hours; grey is closed. {onMove ? 'Drag a confirmed booking to another day or time to move it. ' : ''}Click a booking for the customer&apos;s details, price and other changes. * marks an adjusted price.
+        White areas are your practitioners&apos; bookable hours; grey is closed. {onAdd ? 'Click an empty time to add a booking. ' : ''}{onMove ? 'Drag a confirmed booking to another day or time to move it. ' : ''}Click a booking for the customer&apos;s details, price and other changes. * marks an adjusted price.
       </p>
     </div>
   );
