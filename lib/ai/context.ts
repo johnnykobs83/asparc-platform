@@ -70,13 +70,13 @@ export function renderKnowledgeForPrompt(ctx: AiContext): string {
   const featured = ctx.services.filter((s) => s.is_featured && s.availability !== 'unavailable');
 
   return [
-    '# SERVICES & PRICING (only source of truth for prices)',
-    svcBlock,
     ...(featured.length
       ? [
-          `# CURRENT SPECIAL OFFERS\nWhen someone asks about training, individual programs, sports performance, pricing or what ASPARC offers, mention these briefly and invite them to enquire. Quote the offer exactly as listed above, including any conditions. Never invent extra discounts or deadlines.\n${featured.map((s) => `- ${priceLine(s)}`).join('\n')}`,
+          `# CURRENT SPECIAL OFFERS (promote these)\nWhenever someone asks about individual or 1-on-1 training, a program for an athlete, sports performance, strength & conditioning, football preparation, what ASPARC offers, or prices, ALWAYS mention the offer below first – one sentence with its price, standard price and conditions – before answering the rest, and invite them to enquire. Quote it exactly as listed, including the conditions. Never invent extra discounts or deadlines.\n${featured.map((s) => `- ${priceLine(s)} — ${s.summary}`).join('\n')}`,
         ]
       : []),
+    '# SERVICES & PRICING (only source of truth for prices)',
+    svcBlock,
     '# APPROVED BUSINESS INFORMATION',
     ...approved.map((k) => `### ${k.title}\n${k.content}`),
     ...(ctx.bookingUrl

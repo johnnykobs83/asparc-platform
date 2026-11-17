@@ -71,6 +71,8 @@ describe('ASPARC AI and the special', () => {
   it('lists the special in its own prompt section with its conditions', async () => {
     const prompt = renderKnowledgeForPrompt(await loadAiContext());
     assert.match(prompt, /# CURRENT SPECIAL OFFERS/);
+    assert.ok(prompt.indexOf("# CURRENT SPECIAL OFFERS") < prompt.indexOf("# SERVICES & PRICING"), "specials come first");
+    assert.match(prompt, /ALWAYS mention the offer below first/);
     assert.match(prompt, /Never invent extra discounts or deadlines/);
     assert.match(prompt, /first 10 athletes/);
   });
