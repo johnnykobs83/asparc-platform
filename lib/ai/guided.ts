@@ -109,7 +109,7 @@ export function guidedRespond(text: string, ctx: AiContext, opts: { firstMessage
     return {
       reply: [
         priced.length ? `Current pricing:\n${priced.map((s) => `• ${priceLine(s)}`).join('\n')}` : '',
-        'Sports performance, strength & conditioning and personal training are priced on enquiry.',
+        'Other sports performance, strength & conditioning and personal training services are priced on enquiry.',
       ]
         .filter(Boolean)
         .join('\n\n'),

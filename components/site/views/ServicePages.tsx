@@ -3,24 +3,39 @@ import { IMAGES } from '@/lib/brand';
 import type { Service } from '@/lib/db/types';
 import type { PublicSiteData } from '@/lib/kb/service';
 import { EnquiryForm } from '../EnquiryForm';
-import { Check, CtaBand, DraftBadge, ImageSlot, PageHero, PendingBadge, Section, SectionHeading, ServiceStatus, priceText } from '../ui';
+import { Check, CtaBand, DraftBadge, FeaturedOffer, ImageSlot, OfferPrice, PageHero, PendingBadge, Section, SectionHeading, ServiceStatus, SpecialBadge, cx, enquireHref, featuredServices, isOnSpecial, priceText } from '../ui';
 
 const opts = (site: PublicSiteData) => site.services.filter((s) => s.availability !== 'unavailable').map((s) => ({ name: s.name, category: s.category }));
 
 function ServiceGrid({ services, numbered = true }: { services: Service[]; numbered?: boolean }) {
+  // Featured specials lead the list.
+  const ordered = [...services.filter((s) => s.is_featured), ...services.filter((s) => !s.is_featured)];
   return (
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {services.map((s, i) => (
-        <article key={s.id} className="card flex flex-col p-7">
-          {numbered && <span className="font-display text-4xl font-extrabold text-sky/50">{String(i + 1).padStart(2, '0')}</span>}
-          <h3 className="mt-3 text-2xl uppercase leading-tight">{s.name}</h3>
-          <p className="mt-3 flex-1 text-[15px] leading-relaxed text-muted">{s.summary}</p>
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-            <span className="font-display text-lg font-bold">{priceText(s) ?? 'Pricing on enquiry'}</span>
-            <ServiceStatus s={s} />
-          </div>
-        </article>
-      ))}
+      {ordered.map((s, i) => {
+        const special = s.is_featured || isOnSpecial(s);
+        return (
+          <article key={s.id} className={cx('card relative flex flex-col p-7', special && 'border-2 border-royal shadow-[0_18px_40px_-20px_rgba(20,81,156,0.55)]')}>
+            <div className="flex items-start justify-between gap-3">
+              {numbered && <span className="font-display text-4xl font-extrabold text-sky/50">{String(i + 1).padStart(2, '0')}</span>}
+              {special && <SpecialBadge>{s.offer_label || 'Special'}</SpecialBadge>}
+            </div>
+            <h3 className="mt-3 text-2xl uppercase leading-tight">{s.name}</h3>
+            <p className="mt-3 flex-1 text-[15px] leading-relaxed text-muted">{s.summary}</p>
+            {special && priceText(s) ? (
+              <div className="mt-5 border-t border-line pt-4">
+                <OfferPrice s={s} size="md" />
+                <Link href={enquireHref(s)} className="btn-primary mt-5 w-full">Claim your spot</Link>
+              </div>
+            ) : (
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+                <span className="font-display text-lg font-bold">{priceText(s) ?? 'Pricing on enquiry'}</span>
+                <ServiceStatus s={s} />
+              </div>
+            )}
+          </article>
+        );
+      })}
     </div>
   );
 }
@@ -42,14 +57,18 @@ function Steps({ steps, dark = false }: { steps: [string, string][]; dark?: bool
 /* ---------------------------------------------------------------- */
 export function SportsPerformanceView({ site }: { site: PublicSiteData }) {
   const services = site.services.filter((s) => s.category === 'performance');
+  const featured = featuredServices(services);
   return (
     <>
       <PageHero eyebrow="Sports Performance" title={<>Stronger. Faster. <span className="text-sky">More robust.</span></>} intro="Individualised strength and conditioning, speed and power development for athletes who want to perform at their best – from professional footballers to adults building strength for life." image={IMAGES.performance}>
         <Link href="#request" className="btn-primary">Request a session</Link>
         <Link href="/performance-testing" className="btn-outline">Performance testing</Link>
       </PageHero>
+      {featured.map((s, i) => (
+        <FeaturedOffer key={s.id} s={s} id={i === 0 ? 'special' : undefined} showMore={false} />
+      ))}
       <Section>
-        <SectionHeading eyebrow="What we offer" title="Performance services" intro="Programs are built around your sport, your training history and your goals. Pricing is provided on enquiry while packages are finalised." />
+        <SectionHeading eyebrow="What we offer" title="Performance services" intro="Programs are built around your sport, your training history and your goals. Where a price isn’t shown, it’s provided on enquiry while packages are finalised." />
         <ServiceGrid services={services} />
       </Section>
       <Section tone="mist">

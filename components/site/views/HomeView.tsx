@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { BRAND, IMAGES } from '@/lib/brand';
 import type { PublicSiteData } from '@/lib/kb/service';
-import { Check, CtaBand, DraftBadge, ImageSlot, NumberedCard, Section, SectionHeading, priceText } from '../ui';
+import { Check, CtaBand, DraftBadge, FeaturedOffer, ImageSlot, NumberedCard, Section, SectionHeading, featuredServices, priceText } from '../ui';
 
 const AUDIENCES = ['Professional & semi-pro athletes', 'Football (soccer) players', 'Junior & youth athletes', 'Community sporting clubs', 'Adults building strength & fitness'];
 
@@ -15,6 +15,7 @@ const PILLARS = [
 export function HomeView({ site }: { site: PublicSiteData }) {
   const academy = site.services.find((s) => s.category === 'academy');
   const founder = site.kb['business.founder'];
+  const featured = featuredServices(site.services);
 
   return (
     <>
@@ -48,6 +49,11 @@ export function HomeView({ site }: { site: PublicSiteData }) {
           </ul>
         </div>
       </ImageSlot>
+
+      {/* FEATURED SPECIALS */}
+      {featured.map((s) => (
+        <FeaturedOffer key={s.id} s={s} />
+      ))}
 
       {/* WHAT IS ASPARC */}
       <Section>

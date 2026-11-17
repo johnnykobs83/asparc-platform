@@ -136,3 +136,110 @@ export function Check({ children, dark = false }: { children: ReactNode; dark?: 
     </li>
   );
 }
+
+/* ---------------------------------------------------------------- specials */
+
+const dollars = (cents: number) => {
+  const d = cents / 100;
+  return Number.isInteger(d) ? `$${d}` : `$${d.toFixed(2)}`;
+};
+
+/** A service is "on special" when it has an approved offer price below a genuine standard price. */
+export function isOnSpecial(s: Service): boolean {
+  return s.price_status === 'approved' && s.price_cents != null && s.standard_price_cents != null && s.standard_price_cents > s.price_cents;
+}
+
+/** Services management has chosen to promote across the site. */
+export function featuredServices(services: Service[]): Service[] {
+  return services.filter((s) => s.is_featured && s.is_public && s.availability !== 'unavailable');
+}
+
+/** Link that opens the booking-request form with this service already chosen. */
+export function enquireHref(s: Pick<Service, 'name'>): string {
+  return `/contact?form=booking&service=${encodeURIComponent(s.name)}`;
+}
+
+export function SpecialBadge({ children = 'Special', dark = false, className = '' }: { children?: ReactNode; dark?: boolean; className?: string }) {
+  return (
+    <span className={cx('inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-display text-xs font-bold uppercase tracking-[0.14em]', dark ? 'bg-sky text-charcoal' : 'bg-royal text-white', className)}>
+      <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L10 14.9l-5.2 2.7 1-5.8L1.5 7.7l5.9-.9L10 1.5z" />
+      </svg>
+      {children}
+    </span>
+  );
+}
+
+/** Offer price with the standard price crossed out, the saving and the conditions. */
+export function OfferPrice({ s, dark = false, size = 'lg' }: { s: Service; dark?: boolean; size?: 'md' | 'lg' }) {
+  const price = priceText(s);
+  if (!price) return null;
+  const special = isOnSpecial(s);
+  return (
+    <div>
+      <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className={cx('font-display font-extrabold leading-none', size === 'lg' ? 'text-5xl sm:text-6xl' : 'text-3xl')}>{price}</span>
+        {special && (
+          <span className={cx('font-display font-semibold', size === 'lg' ? 'text-2xl' : 'text-lg', dark ? 'text-white/55' : 'text-muted')}>
+            <span className="sr-only">Standard price </span>
+            <s>{dollars(s.standard_price_cents!)}</s>
+          </span>
+        )}
+        {special && (
+          <span className={cx('rounded-md px-2 py-0.5 font-display text-sm font-bold uppercase tracking-wider', dark ? 'bg-sky/20 text-sky' : 'bg-sky-100 text-royal')}>
+            Save {dollars(s.standard_price_cents! - s.price_cents!)}
+          </span>
+        )}
+      </p>
+      {s.price_unit && <p className={cx('mt-2 text-sm', dark ? 'text-white/65' : 'text-muted')}>{s.price_unit}</p>}
+      {s.offer_terms && <p className={cx('mt-1 text-sm font-medium', dark ? 'text-white/80' : 'text-charcoal/80')}>{s.offer_terms}</p>}
+    </div>
+  );
+}
+
+/** Large promotional block for a featured service. */
+export function FeaturedOffer({ s, id, headingLevel = 'h2', showMore = true }: { s: Service; id?: string; headingLevel?: 'h2' | 'h3'; showMore?: boolean }) {
+  const H = headingLevel;
+  return (
+    <section id={id} className="relative scroll-mt-28 overflow-hidden bg-charcoal text-white" aria-label={`${s.offer_label || 'Special'}: ${s.name}`}>
+      <div className="speed-lines absolute inset-0" aria-hidden="true" />
+      <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-royal/40 blur-3xl" aria-hidden="true" />
+      <div className="container-x relative grid gap-10 py-16 sm:py-20 lg:grid-cols-12 lg:items-center">
+        <div className="lg:col-span-7">
+          <SpecialBadge dark>{s.offer_label || 'Special'}</SpecialBadge>
+          <H className="mt-5 text-balance text-4xl uppercase leading-[0.92] sm:text-6xl">{s.name}</H>
+          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-white/75">{s.summary}</p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white p-7 text-charcoal shadow-2xl sm:p-9 lg:col-span-5">
+          <OfferPrice s={s} />
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
+            <Link href={enquireHref(s)} className="btn-primary flex-1">Claim your spot</Link>
+            {showMore && <Link href="/sports-performance#special" className="btn-outline-dark flex-1">Find out more</Link>}
+          </div>
+        </div>
+      </div>
+      <div className="h-1.5 w-full bg-gradient-to-r from-royal via-sky to-royal" aria-hidden="true" />
+    </section>
+  );
+}
+
+/** Thin site-wide announcement shown above the header on every page. */
+export function SpecialBanner({ s }: { s: Service }) {
+  const special = isOnSpecial(s);
+  return (
+    <Link href="/sports-performance#special" className="group block bg-royal text-white">
+      <span className="container-x flex flex-wrap items-center justify-center gap-x-3 gap-y-1 py-2.5 text-center text-sm">
+        <span className="font-display font-bold uppercase tracking-[0.16em] text-sky-100">{s.offer_label || 'Special'}</span>
+        <span className="hidden h-1 w-1 rotate-45 bg-sky sm:inline-block" aria-hidden="true" />
+        <span className="font-semibold">{s.name}</span>
+        {priceText(s) && (
+          <span>
+            {priceText(s)}
+            {special && <> <s className="text-white/60">{dollars(s.standard_price_cents!)}</s></>}
+          </span>
+        )}
+        <span className="font-display font-semibold uppercase tracking-wider underline-offset-4 group-hover:underline">Find out more →</span>
+      </span>
+    </Link>
+  );
+}

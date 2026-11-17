@@ -90,6 +90,10 @@ export const DEFAULTS: { [K in TableName]?: Partial<Tables[K]> } = {
     payment_link_url: null,
     is_public: true,
     sort_order: 0,
+    standard_price_cents: null,
+    offer_label: null,
+    offer_terms: null,
+    is_featured: false,
   },
   knowledge_base: { content: '', data: {}, status: 'draft', is_public: true, updated_by: null },
   notifications: {

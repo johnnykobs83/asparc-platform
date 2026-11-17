@@ -23,4 +23,16 @@ export const ServiceFields = {
   payment_link_url: z.string().url().startsWith('https://').nullable(),
   is_public: z.boolean(),
   sort_order: z.number().int(),
+  standard_price_cents: z.number().int().min(0).max(10_000_000).nullable(),
+  offer_label: z.string().trim().max(60).nullable(),
+  offer_terms: z.string().trim().max(200).nullable(),
+  is_featured: z.boolean(),
 };
+
+/** A crossed-out "standard" price only makes sense above an approved offer price. */
+export function offerProblem(s: { price_cents?: number | null; price_status?: string; standard_price_cents?: number | null }): string | null {
+  if (s.standard_price_cents == null) return null;
+  if (s.price_status !== 'approved' || s.price_cents == null) return 'A standard (crossed-out) price needs an approved offer price';
+  if (s.standard_price_cents <= s.price_cents) return 'The standard price must be higher than the offer price';
+  return null;
+}

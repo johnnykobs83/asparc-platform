@@ -214,6 +214,10 @@ interface Svc {
   payment_link_url: string | null;
   is_public: boolean;
   sort_order: number;
+  standard_price_cents?: number | null;
+  offer_label?: string | null;
+  offer_terms?: string | null;
+  is_featured?: boolean;
 }
 
 export function PricingSection({ can }: { can: Can }) {
@@ -244,8 +248,8 @@ export function PricingSection({ can }: { can: Can }) {
                   <tbody>
                     {data.services.filter((s) => s.category === c).map((s) => (
                       <tr key={s.id} onClick={() => setEdit(s)} className="cursor-pointer border-b border-line last:border-0 hover:bg-mist">
-                        <td className="px-5 py-3"><p className="font-medium">{s.name}</p>{!s.is_public && <Badge className="mt-1">Hidden</Badge>}</td>
-                        <td className="px-5 py-3 tabular-nums">{s.price_status === 'on_enquiry' ? <span className="text-muted">On enquiry</span> : `${fmtMoney(s.price_cents)} ${s.price_unit ?? ''}`}</td>
+                        <td className="px-5 py-3"><p className="font-medium">{s.name}</p>{!s.is_public && <Badge className="mt-1">Hidden</Badge>}{s.is_featured && <Badge tone="sky" className="ml-1 mt-1">Featured</Badge>}</td>
+                        <td className="px-5 py-3 tabular-nums">{s.price_status === 'on_enquiry' ? <span className="text-muted">On enquiry</span> : `${fmtMoney(s.price_cents)} ${s.price_unit ?? ''}`}{s.standard_price_cents != null && <span className="block text-xs text-muted">Special – standard {fmtMoney(s.standard_price_cents)}</span>}</td>
                         <td className="px-5 py-3"><Badge tone={s.price_status === 'approved' ? 'green' : s.price_status === 'draft' ? 'amber' : 'neutral'}>{s.price_status === 'on_enquiry' ? 'On enquiry' : label(s.price_status)}</Badge></td>
                         <td className="px-5 py-3"><Badge tone={s.availability === 'available' ? 'green' : s.availability === 'pending_confirmation' ? 'sky' : 'neutral'}>{label(s.availability)}</Badge></td>
                         <td className="px-5 py-3 text-xs text-muted">{s.payment_link_url ? 'Set' : '–'}</td>
@@ -266,6 +270,7 @@ export function PricingSection({ can }: { can: Can }) {
 function ServiceEditor({ svc, editable, onClose, onSaved }: { svc: Svc; editable: boolean; onClose: () => void; onSaved: () => void }) {
   const [s, setS] = useState(svc);
   const [price, setPrice] = useState(svc.price_cents == null ? '' : String(svc.price_cents / 100));
+  const [standard, setStandard] = useState(svc.standard_price_cents == null ? '' : String(svc.standard_price_cents / 100));
   const [err, setErr] = useState<string | null>(null);
   const up = <K extends keyof Svc>(k: K, v: Svc[K]) => setS((x) => ({ ...x, [k]: v }));
   async function save() {
@@ -273,9 +278,11 @@ function ServiceEditor({ svc, editable, onClose, onSaved }: { svc: Svc; editable
     try {
       const cents = price.trim() === '' ? null : Math.round(Number(price) * 100);
       if (cents !== null && Number.isNaN(cents)) throw new Error('Price must be a number');
+      const standardCents = standard.trim() === '' ? null : Math.round(Number(standard) * 100);
+      if (standardCents !== null && Number.isNaN(standardCents)) throw new Error('Standard price must be a number');
       await api(`/api/admin/services/${svc.id}`, {
         method: 'PATCH',
-        body: { name: s.name, summary: s.summary, duration_minutes: s.duration_minutes, price_cents: cents, price_unit: s.price_unit || null, price_status: s.price_status, availability: s.availability, bookable: s.bookable, payment_link_url: s.payment_link_url || null, is_public: s.is_public },
+        body: { name: s.name, summary: s.summary, duration_minutes: s.duration_minutes, price_cents: cents, price_unit: s.price_unit || null, price_status: s.price_status, availability: s.availability, bookable: s.bookable, payment_link_url: s.payment_link_url || null, is_public: s.is_public, standard_price_cents: standardCents, offer_label: s.offer_label?.trim() || null, offer_terms: s.offer_terms?.trim() || null, is_featured: Boolean(s.is_featured) },
       });
       onSaved();
     } catch (e) {
@@ -312,6 +319,18 @@ function ServiceEditor({ svc, editable, onClose, onSaved }: { svc: Svc; editable
             <label className="flex items-center gap-2"><input type="checkbox" className="accent-royal" checked={s.is_public} onChange={(e) => up('is_public', e.target.checked)} disabled={!editable} /> Show on website</label>
             <label className="flex items-center gap-2"><input type="checkbox" className="accent-royal" checked={s.bookable} onChange={(e) => up('bookable', e.target.checked)} disabled={!editable} /> Accept booking requests</label>
           </div>
+        </div>
+        <div className="space-y-3 rounded-lg border border-line p-4">
+          <p className="text-sm font-semibold">Special offer</p>
+          <p className="text-xs text-muted">Leave the standard price empty when this service is not on special. The price above is the offer price; the standard price is shown crossed out next to it. Only use a standard price you genuinely charge (or will charge) – Australian consumer law requires “was/now” prices to be real.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Standard price (AUD)"><input className="field" inputMode="decimal" value={standard} onChange={(e) => setStandard(e.target.value)} disabled={!editable} placeholder="e.g. 990" /></Field>
+            <Field label="Badge text"><input className="field" value={s.offer_label ?? ''} onChange={(e) => up('offer_label', e.target.value)} disabled={!editable} placeholder="Introductory offer" maxLength={60} /></Field>
+          </div>
+          <Field label="Offer conditions" hint="Shown under the price, e.g. who it is for or when it ends.">
+            <input className="field" value={s.offer_terms ?? ''} onChange={(e) => up('offer_terms', e.target.value)} disabled={!editable} placeholder="For the first 10 athletes" maxLength={200} />
+          </Field>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-royal" checked={Boolean(s.is_featured)} onChange={(e) => up('is_featured', e.target.checked)} disabled={!editable} /> Feature across the website (homepage, banner on every page, ASPARC AI)</label>
         </div>
         <Field label="Secure payment link (Phase 4)" hint="A Stripe Payment Link (https://buy.stripe.com/…). Allowed only on approved prices. ASPARC AI shares it; it never takes card details.">
           <input className="field" value={s.payment_link_url ?? ''} onChange={(e) => up('payment_link_url', e.target.value)} disabled={!editable} placeholder="https://" />

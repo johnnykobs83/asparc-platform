@@ -185,6 +185,14 @@ export interface Service {
   payment_link_url: string | null;
   is_public: boolean;
   sort_order: number;
+  /** Usual price, shown crossed out beside the offer price. Null when not on special. */
+  standard_price_cents?: number | null;
+  /** Short badge text for a special, e.g. "Introductory offer". */
+  offer_label?: string | null;
+  /** Conditions shown under the offer price, e.g. "For the first 10 athletes". */
+  offer_terms?: string | null;
+  /** Promote this service across the website and in ASPARC AI. */
+  is_featured?: boolean;
   created_at: Iso;
   updated_at: Iso;
 }

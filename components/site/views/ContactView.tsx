@@ -13,10 +13,15 @@ const TABS: { key: FormKind; label: string }[] = [
 
 export function ContactForms({ services, initial = 'contact' }: { services: ServiceOption[]; initial?: FormKind }) {
   const [tab, setTab] = useState<FormKind>(initial);
+  // ?service=<name> pre-selects a service, e.g. from a "Claim your spot" button.
+  const [service, setService] = useState<string | undefined>(undefined);
   useEffect(() => {
-    const f = new URLSearchParams(window.location.search).get('form') as FormKind | null;
+    const q = new URLSearchParams(window.location.search);
+    const f = q.get('form') as FormKind | null;
     if (f && TABS.some((t) => t.key === f)) setTab(f);
-  }, []);
+    const s = q.get('service');
+    if (s && services.some((x) => x.name === s)) setService(s);
+  }, [services]);
   return (
     <div>
       <div role="tablist" aria-label="Enquiry type" className="mb-6 flex flex-wrap gap-2">
@@ -34,7 +39,13 @@ export function ContactForms({ services, initial = 'contact' }: { services: Serv
         ))}
       </div>
       <div role="tabpanel">
-        <EnquiryForm key={tab} form={tab} services={services} leadType={tab === 'club' ? 'club_partnership' : undefined} />
+        <EnquiryForm
+          key={`${tab}|${service ?? ''}`}
+          form={tab}
+          services={services}
+          serviceInterest={tab === 'booking' ? service : undefined}
+          leadType={tab === 'club' ? 'club_partnership' : undefined}
+        />
       </div>
     </div>
   );
