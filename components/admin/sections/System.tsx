@@ -10,7 +10,7 @@ type Can = (p: string) => boolean;
 
 /* ------------------------------------------------------------ REVENUE */
 export function RevenueSection() {
-  const { data, error, loading } = useApi<{ connected: boolean; totalCents: number; payments: { id: string; description: string | null; amount_cents: number; status: string; paid_at: string | null; provider_ref: string }[] }>('/api/admin/revenue');
+  const { data, error, loading } = useApi<{ connected: boolean; totalCents: number; gstCents?: number; payments: { id: string; description: string | null; amount_cents: number; refunded_cents?: number; tax_cents?: number | null; status: string; paid_at: string | null; provider_ref: string }[] }>('/api/admin/revenue');
   return (
     <>
       <PageHeader title="Revenue" description="Revenue is reported only from real payment records received from Stripe. No figures are estimated." />
@@ -18,7 +18,7 @@ export function RevenueSection() {
       {loading && !data && <Loading />}
       {data && !data.connected && (
         <Empty title="Payments are not connected yet">
-          Revenue reporting activates in <strong>Phase 4</strong> when Stripe is connected (STRIPE_SECRET_KEY + webhook). Until then, payments are handled outside the platform and nothing is shown here.
+          Revenue reporting activates in <strong>Phase 4</strong> when Stripe is connected (the STRIPE_WEBHOOK_SECRET from the Stripe webhook). Until then, payments are handled outside the platform and nothing is shown here.
         </Empty>
       )}
       {data?.connected && (
@@ -26,13 +26,15 @@ export function RevenueSection() {
           <div className="grid gap-4 sm:grid-cols-3">
             <StatCard label="Total received" value={fmtMoney(data.totalCents)} />
             <StatCard label="Payments" value={data.payments.filter((p) => p.status === 'succeeded').length} />
+            <StatCard label="GST included" value={fmtMoney(data.gstCents ?? 0)} />
           </div>
           <DataTable
             rows={data.payments}
             search={(p) => `${p.description ?? ''} ${p.provider_ref}`}
             columns={[
               { key: 'd', header: 'Description', render: (p) => p.description ?? '–' },
-              { key: 'a', header: 'Amount', render: (p) => fmtMoney(p.amount_cents) },
+              { key: 'a', header: 'Amount', render: (p) => (p.refunded_cents ? <>{fmtMoney(p.amount_cents)} <span className="text-xs text-muted">({fmtMoney(p.refunded_cents)} refunded)</span></> : fmtMoney(p.amount_cents)) },
+              { key: 'g', header: 'GST', render: (p) => (p.tax_cents == null ? '–' : fmtMoney(p.tax_cents)) },
               { key: 's', header: 'Status', render: (p) => <Badge tone={p.status === 'succeeded' ? 'green' : 'neutral'}>{label(p.status)}</Badge> },
               { key: 'p', header: 'Paid', render: (p) => fmtDate(p.paid_at) },
             ]}

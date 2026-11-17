@@ -293,7 +293,18 @@ export interface Payment {
   currency: string;
   status: 'succeeded' | 'refunded' | 'failed' | 'pending';
   paid_at: Iso | null;
+  /** Which service was bought, from the Stripe Payment Link's metadata. */
+  service_slug?: string | null;
+  /** GST included in amount_cents. */
+  tax_cents?: number | null;
+  /** Refunded or credited so far (partial refunds, invoice credit notes). */
+  refunded_cents?: number;
   created_at: Iso;
+}
+
+/** What a payment actually brought in: nothing unless it succeeded, less any partial refund or credit. */
+export function netCents(p: Pick<Payment, 'status' | 'amount_cents' | 'refunded_cents'>): number {
+  return p.status === 'succeeded' ? Math.max(0, p.amount_cents - (p.refunded_cents ?? 0)) : 0;
 }
 
 export interface DailySummary {

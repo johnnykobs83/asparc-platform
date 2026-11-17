@@ -30,7 +30,9 @@ Then test from a personal account: AI disclosure, an Academy question, a medical
 Built:
 
 - `lib/integrations/stripe.ts` and `app/api/webhooks/stripe/route.ts`: a signature-verified Stripe webhook that writes to the `payments` table. No Stripe SDK and no card data: customers pay on Stripe-hosted pages (Payment Links or Checkout).
-- Events handled: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `charge.refunded` (full refunds).
+- Events handled: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `charge.refunded` (full and partial refunds), `invoice.paid`, `invoice.payment_failed` and `invoice.updated` (credit notes after payment).
+- Each Payment Link carries `metadata.service_slug`, so a payment is recorded against its service, with the answers to the link's custom fields (athlete name, age group) and the GST it includes (`tax_cents`). Revenue totals subtract partial refunds and credits.
+- Don't turn on "post-purchase invoice" on a Payment Link: that payment would arrive both as a checkout and as an invoice.
 - A successful payment creates a "Payment received" notification. It does **not** confirm a booking or registration – staff still do that.
 - The Revenue page and daily summary read only from these records.
 

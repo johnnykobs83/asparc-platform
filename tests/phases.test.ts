@@ -12,6 +12,7 @@ import { chunkText } from '../lib/channels/messenger';
 import { db } from '../lib/db';
 import { integrationStatuses } from '../lib/config/env';
 import { verifyStripeSignature } from '../lib/integrations/stripe';
+import { ensureSeeded } from '../lib/kb/service';
 import { REPLY_WINDOW_MS, sendStaffReply } from '../lib/channels/handover';
 import { adminCookie, ctx, freshDb, mockFetch, req, type FetchCall } from './helpers';
 
@@ -95,6 +96,88 @@ describe('Phase 4 – Stripe webhook', () => {
     const other = await stripePOST(stripeReq({ id: 'evt_3', type: 'customer.created', data: { object: {} } }));
     assert.equal(other.status, 200);
     assert.equal((await other.json()).handled, false);
+  });
+
+  it('records which service a Payment Link sold, the custom-field answers and the GST', async () => {
+    freshDb({ STRIPE_WEBHOOK_SECRET: WHSEC });
+    await ensureSeeded();
+    await stripePOST(
+      stripeReq(
+        checkout({
+          amount_total: 77000,
+          metadata: { service_slug: 'individual-high-performance-6-week' },
+          total_details: { amount_tax: 7000 },
+          custom_fields: [
+            { key: 'athlete_name', label: { type: 'custom', custom: "Athlete's full name" }, type: 'text', text: { value: 'Sam Lee' } },
+            { key: 'age_group', label: { type: 'custom', custom: 'Age group' }, type: 'dropdown', dropdown: { value: '14to16', options: [{ label: '14–16', value: '14to16' }] } },
+          ],
+        }),
+      ),
+    );
+    const [p] = await db().list('payments');
+    assert.equal(p.service_slug, 'individual-high-performance-6-week');
+    assert.equal(p.tax_cents, 7000);
+    assert.equal(p.description, 'Individual 6-Week High-Performance Program – Athlete: Sam Lee · Age group: 14–16');
+    const note = (await db().list('notifications')).find((n) => n.type === 'payment_confirmation')!;
+    assert.match(note.title, /\$770\.00 – Individual 6-Week High-Performance Program/);
+    assert.match(note.body, /does not confirm a booking/);
+  });
+
+  it('ignores an unknown or malformed service slug', async () => {
+    freshDb({ STRIPE_WEBHOOK_SECRET: WHSEC });
+    await stripePOST(stripeReq(checkout({ metadata: { service_slug: 'Not A Slug!' } })));
+    const [p] = await db().list('payments');
+    assert.equal(p.service_slug, null);
+    assert.equal(p.description, 'Online payment (Stripe Checkout)');
+  });
+
+  it('records partial refunds as a running total and nets them out of revenue', async () => {
+    freshDb({ STRIPE_WEBHOOK_SECRET: WHSEC });
+    await stripePOST(stripeReq(checkout()));
+    const partial = { id: 'evt_r', type: 'charge.refunded', data: { object: { id: 'ch_1', payment_intent: 'pi_test_1', refunded: false, amount_refunded: 8000 } } };
+    await stripePOST(stripeReq(partial));
+    await stripePOST(stripeReq(partial)); // redelivery changes nothing
+    const [p] = await db().list('payments');
+    assert.equal(p.status, 'succeeded');
+    assert.equal(p.refunded_cents, 8000);
+    const r = await (await revenueGET(req('/api/admin/revenue', { cookie: await adminCookie('owner') }))).json();
+    assert.equal(r.totalCents, 30000);
+  });
+
+  it('records paid club invoices, credit notes after payment, and failed invoice payments', async () => {
+    freshDb({ STRIPE_WEBHOOK_SECRET: WHSEC });
+    const invoice = (type: string, over: Record<string, unknown> = {}) => ({
+      id: `evt_${type}`,
+      type,
+      created: 1_800_000_000,
+      data: { object: { id: 'in_test_1', number: 'ASP-0001', customer_name: 'Avondale FC', customer_email: 'Club@Example.com', currency: 'aud', amount_paid: 220000, total: 220000, total_taxes: [{ amount: 20000 }], status_transitions: { paid_at: 1_800_000_100 }, ...over } },
+    });
+    await stripePOST(stripeReq(invoice('invoice.payment_failed', { amount_paid: 0 })));
+    assert.equal((await db().list('payments')).length, 0);
+    assert.ok((await db().list('notifications')).some((n) => /Invoice payment failed: Invoice ASP-0001 – Avondale FC/.test(n.title)));
+
+    await stripePOST(stripeReq(invoice('invoice.paid')));
+    await stripePOST(stripeReq(invoice('invoice.paid'))); // redelivery
+    let [p] = await db().list('payments');
+    assert.equal((await db().list('payments')).length, 1);
+    assert.equal(p.provider_ref, 'in_test_1');
+    assert.equal(p.amount_cents, 220000);
+    assert.equal(p.tax_cents, 20000);
+    assert.equal(p.description, 'Invoice ASP-0001 – Avondale FC');
+    assert.equal(p.paid_at, new Date(1_800_000_100 * 1000).toISOString());
+    assert.equal((await db().list('notifications')).filter((n) => /^Invoice paid/.test(n.title)).length, 1);
+
+    await stripePOST(stripeReq(invoice('invoice.updated', { post_payment_credit_notes_amount: 55000 })));
+    [p] = await db().list('payments');
+    assert.equal(p.refunded_cents, 55000);
+    assert.equal(p.status, 'succeeded');
+    await stripePOST(stripeReq(invoice('invoice.updated', { post_payment_credit_notes_amount: 220000 })));
+    [p] = await db().list('payments');
+    assert.equal(p.status, 'refunded');
+
+    // an update to an invoice that was never paid records nothing
+    await stripePOST(stripeReq({ ...invoice('invoice.updated'), data: { object: { id: 'in_other', post_payment_credit_notes_amount: 0 } } }));
+    assert.equal((await db().list('payments')).length, 1);
   });
 
   it('revenue page reports only succeeded payments', async () => {

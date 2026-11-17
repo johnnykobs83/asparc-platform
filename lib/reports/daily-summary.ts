@@ -1,6 +1,6 @@
 import { env } from '../config/env';
 import { db } from '../db';
-import { LEAD_SOURCE_LABELS, type DailySummary, type LeadSource } from '../db/types';
+import { LEAD_SOURCE_LABELS, netCents, type DailySummary, type LeadSource } from '../db/types';
 import { emailLayout, escapeHtml, sendEmail } from '../integrations/resend';
 import { listKnowledge } from '../kb/service';
 import { addDays, melbourneDate, melbourneDayRange, TZ } from '../time/melbourne';
@@ -59,7 +59,7 @@ export async function buildDailySummary(ymd: string): Promise<SummaryData> {
     bookingRequests: bookings.length,
     conversations: convos.length,
     qualifiedLeads: leads.filter((l) => l.is_qualified).length,
-    payments: { connected: Boolean(env.stripeKey || env.stripeWebhookSecret), count: succeeded.length, totalCents: succeeded.reduce((s, p) => s + p.amount_cents, 0) },
+    payments: { connected: Boolean(env.stripeKey || env.stripeWebhookSecret), count: succeeded.length, totalCents: succeeded.reduce((s, p) => s + netCents(p), 0) },
     outstandingFollowUps: outstanding.map((l) => ({ id: l.id, name: nameOf.get(l.customer_id) ?? 'Unknown', type: l.lead_type, stage: l.stage, due: l.follow_up_due })),
     attentionItems: attention,
   };

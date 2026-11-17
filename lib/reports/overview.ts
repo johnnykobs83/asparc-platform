@@ -1,6 +1,6 @@
 import { env } from '../config/env';
 import { db } from '../db';
-import { LEAD_SOURCE_LABELS, LEAD_STAGES, LEAD_STAGE_LABELS, LEAD_TYPE_LABELS } from '../db/types';
+import { LEAD_SOURCE_LABELS, LEAD_STAGES, LEAD_STAGE_LABELS, LEAD_TYPE_LABELS, netCents } from '../db/types';
 import { addDays, melbourneDate, melbourneDayRange } from '../time/melbourne';
 
 export async function getOverview(days = 30) {
@@ -42,7 +42,7 @@ export async function getOverview(days = 30) {
       academyRegistrations: regs.length,
       conversations: convos.length,
       unreadNotifications: unread,
-      revenue: env.stripeKey ? { connected: true, cents: succeeded.reduce((s, p) => s + p.amount_cents, 0), count: succeeded.length } : { connected: false, cents: 0, count: 0 },
+      revenue: env.stripeKey || env.stripeWebhookSecret ? { connected: true, cents: succeeded.reduce((s, p) => s + netCents(p), 0), count: succeeded.length } : { connected: false, cents: 0, count: 0 },
     },
     attention: {
       leads: allLeads.filter((l) => l.needs_attention && l.follow_up_status !== 'done').length,
