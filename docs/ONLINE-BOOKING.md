@@ -62,6 +62,13 @@ overlaps another for the same practitioner.
   Choose the practitioner and a listed service (its length and price fill in)
   or type a one-off booking with its own name, length and price. The customer
   needs a name and an email or mobile.
+- **Repeating bookings:** in *Add booking*, choose *Repeat* (every 1, 2, 3 or 4 weeks)
+  and either a number of sessions or an end date – up to 52 bookings or a year ahead.
+  Each repeat is the same weekday, time, practitioner and price. Any repeat that would
+  overlap another booking is skipped and listed. The customer gets one email with
+  every date (and the pre-visit form once, if due). Opening one shows "session 3 of 10",
+  with *Cancel this one* or *Cancel this and all later ones* (one email to the customer).
+  Needs migration `20261125000010_appointment_series.sql`.
 - **Customer emails:** the customer is emailed when a booking is made (online
   or by staff), moved, cancelled or re-priced. The dashboard says after each
   change whether the email went out. Nothing is sent if Resend email is not

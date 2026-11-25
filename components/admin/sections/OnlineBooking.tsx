@@ -41,9 +41,25 @@ interface AppointmentRow {
   charge_cents: number | null;
   price_note: string | null;
   customer_id: string;
+  /** Set when the booking is one of a repeating booking. */
+  series_id?: string | null;
   customer: { full_name: string; email: string | null; phone: string | null } | null;
 }
 interface ClientHit { id: string; full_name: string; email: string | null; phone: string | null; visits: number; last_visit: string | null; form: string }
+
+const ymdPlus = (ymd: string, days: number) => new Date(Date.parse(`${ymd}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+const shortDay = (ymd: string) => new Intl.DateTimeFormat('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${ymd}T00:00:00Z`));
+const MAX_REPEATS = 52;
+/** The dates a repeating booking would land on (the server works this out the same way). */
+function repeatDates(first: string, everyWeeks: number, mode: 'count' | 'until', count: number, until: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; out.length <= MAX_REPEATS; i++) {
+    const d = ymdPlus(first, i * everyWeeks * 7);
+    if (mode === 'count' ? out.length >= count : !until || d > until) break;
+    out.push(d);
+  }
+  return out;
+}
 
 // Monday first, as people read a working week. Keys match JavaScript's getDay().
 const DAYS: [key: string, name: string][] = [['1', 'Monday'], ['2', 'Tuesday'], ['3', 'Wednesday'], ['4', 'Thursday'], ['5', 'Friday'], ['6', 'Saturday'], ['0', 'Sunday']];
@@ -91,6 +107,19 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
   const emailReady = Boolean(appointments.data?.email_ready);
   /** What the confirmation prompt says about telling the customer. */
   const willTell = (a: { customer: AppointmentRow['customer'] }) => (emailReady && a.customer?.email ? 'The customer will be emailed.' : 'The customer will not be emailed – please let them know.');
+
+  /** Cancels this booking and every later one in the same repeating booking. */
+  async function cancelFollowing(a: AppointmentRow) {
+    const n = (appointments.data?.appointments ?? []).filter((x) => x.series_id === a.series_id && x.starts_at >= a.starts_at && x.status === 'confirmed').length;
+    if (!window.confirm(`Cancel ${n} bookings for ${a.customer?.full_name ?? 'this customer'}, from ${fmtDate(a.starts_at)} onwards? Those times become available to other customers.\n\n${emailReady && a.customer?.email ? 'The customer will get one email listing them.' : 'The customer will not be emailed – please let them know.'}`)) return;
+    try {
+      const r = await api<{ cancelled: number; customer_email?: EmailStatus }>(`/api/admin/appointments/${a.id}`, { method: 'PATCH', body: { status: 'cancelled', scope: 'following' } });
+      toast(`${r.cancelled} booking${r.cancelled === 1 ? '' : 's'} cancelled.${emailNote(r.customer_email)}`, r.customer_email === 'failed' ? 'err' : 'ok');
+      await appointments.reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), 'err');
+    }
+  }
 
   async function setStatus(a: AppointmentRow, status: string) {
     if (status === 'cancelled' && !window.confirm(`Cancel ${a.customer?.full_name ?? 'this'} booking for ${fmtDate(a.starts_at)}? The time becomes available to other customers.\n\n${willTell(a)}`)) return;
@@ -148,7 +177,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
     if (!priceNote.trim()) setPriceNote(`${pct}% discount`);
   };
 
-  interface NewBooking { practitioner_id: string; service_id: string; service_name: string; date: string; time: string; duration: string; full_name: string; email: string; phone: string; notes: string; price: string; customer_id: string }
+  interface NewBooking { practitioner_id: string; service_id: string; service_name: string; date: string; time: string; duration: string; full_name: string; email: string; phone: string; notes: string; price: string; customer_id: string; repeat_every: string; repeat_mode: 'count' | 'until'; repeat_count: string; repeat_until: string }
   const [adding, setAdding] = useState<NewBooking | null>(null);
   const [addError, setAddError] = useState<{ message: string; fields: Record<string, string> } | null>(null);
   const [addSaving, setAddSaving] = useState(false);
@@ -162,7 +191,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
       return;
     }
     setAddError(null);
-    setAdding({ practitioner_id: first.id, service_id: '', service_name: '', date, time: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`, duration: '', full_name: '', email: '', phone: '', notes: '', price: '', customer_id: '' });
+    setAdding({ practitioner_id: first.id, service_id: '', service_name: '', date, time: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`, duration: '', full_name: '', email: '', phone: '', notes: '', price: '', customer_id: '', repeat_every: '', repeat_mode: 'count', repeat_count: '6', repeat_until: '' });
     setClientQuery('');
     setClientHits([]);
   }
@@ -200,7 +229,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
     setAddSaving(true);
     setAddError(null);
     try {
-      const r = await api<{ customer_email?: EmailStatus; pre_visit_form?: string }>('/api/admin/appointments', {
+      const r = await api<{ customer_email?: EmailStatus; pre_visit_form?: string; booked?: number; skipped?: { date: string; reason: string }[] }>('/api/admin/appointments', {
         body: {
           practitioner_id: adding.practitioner_id,
           service_id: adding.service_id || null,
@@ -214,11 +243,16 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
           notes: adding.notes.trim() || undefined,
           price_cents: adding.price === '' ? undefined : Math.round(Number(adding.price) * 100),
           customer_id: adding.customer_id || undefined,
+          repeat: adding.repeat_every
+            ? { every_weeks: Number(adding.repeat_every), ...(adding.repeat_mode === 'count' ? { count: Number(adding.repeat_count) || 0 } : { until: adding.repeat_until || undefined }) }
+            : undefined,
         },
       });
       setAdding(null);
       const form = r.pre_visit_form === 'sent' ? ' The pre-visit health form was emailed too.' : '';
-      toast(`Booking added.${emailNote(r.customer_email)}${form}`, r.customer_email === 'failed' ? 'err' : 'ok');
+      const many = (r.booked ?? 1) > 1 ? `${r.booked} bookings added.` : 'Booking added.';
+      const missed = r.skipped?.length ? ` Not booked (time already taken): ${r.skipped.map((x) => shortDay(x.date)).join(', ')}.` : '';
+      toast(`${many}${missed}${emailNote(r.customer_email)}${form}`, r.customer_email === 'failed' || r.skipped?.length ? 'err' : 'ok');
       await appointments.reload();
     } catch (e) {
       const fields = (e as { fields?: Record<string, string> }).fields ?? {};
@@ -369,6 +403,46 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
               <label className="block"><span className="font-medium">Minutes</span><input type="number" min={5} max={480} step={5} className="mt-1 block w-24 rounded-md border border-line px-2 py-2" value={adding.duration} onChange={(e) => patchAdd({ duration: e.target.value })} /></label>
             </div>
             {addError?.fields.duration_minutes && <p className="text-xs text-danger">{addError.fields.duration_minutes}</p>}
+            <div className="rounded-md border border-line p-3">
+              <label className="block">
+                <span className="font-medium">Repeat</span>
+                <select className="mt-1 block w-full rounded-md border border-line px-2 py-2" value={adding.repeat_every} onChange={(e) => patchAdd({ repeat_every: e.target.value })}>
+                  <option value="">Doesn’t repeat</option>
+                  <option value="1">Every week</option>
+                  <option value="2">Every 2 weeks</option>
+                  <option value="3">Every 3 weeks</option>
+                  <option value="4">Every 4 weeks</option>
+                </select>
+              </label>
+              {adding.repeat_every && (
+                <>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-2">
+                      <input type="radio" className="accent-royal" checked={adding.repeat_mode === 'count'} onChange={() => patchAdd({ repeat_mode: 'count' })} />
+                      <span>For</span>
+                      <input type="number" min={2} max={MAX_REPEATS} className="w-16 rounded-md border border-line px-2 py-1.5" value={adding.repeat_count} onChange={(e) => patchAdd({ repeat_mode: 'count', repeat_count: e.target.value })} />
+                      <span>sessions</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" className="accent-royal" checked={adding.repeat_mode === 'until'} onChange={() => patchAdd({ repeat_mode: 'until' })} />
+                      <span>Until</span>
+                      <input type="date" min={adding.date} className="rounded-md border border-line px-2 py-1.5" value={adding.repeat_until} onChange={(e) => patchAdd({ repeat_mode: 'until', repeat_until: e.target.value })} />
+                    </label>
+                  </div>
+                  {(() => {
+                    const d = repeatDates(adding.date, Number(adding.repeat_every), adding.repeat_mode, Number(adding.repeat_count) || 0, adding.repeat_until);
+                    if (d.length > MAX_REPEATS) return <p className="mt-2 text-xs text-danger">That’s more than {MAX_REPEATS} bookings – choose an earlier end date.</p>;
+                    if (d.length < 2) return <p className="mt-2 text-xs text-muted">{adding.repeat_mode === 'until' ? 'Choose an end date after the first booking.' : 'Choose 2 or more sessions.'}</p>;
+                    return (
+                      <p className="mt-2 text-xs text-muted">
+                        Makes <strong className="text-charcoal">{d.length} bookings</strong>, same time: {shortDay(d[0])}, {shortDay(d[1])}{d.length > 2 ? ` … ${shortDay(d[d.length - 1])}` : ''}. Any that clash with another booking are skipped and listed. The customer gets one email with every date.
+                      </p>
+                    );
+                  })()}
+                  {(addError?.fields['repeat'] || addError?.fields['repeat.count'] || addError?.fields['repeat.until']) && <p className="mt-1 text-xs text-danger">{addError.fields['repeat'] ?? addError.fields['repeat.count'] ?? addError.fields['repeat.until']}</p>}
+                </>
+              )}
+            </div>
             {adding.customer_id ? (
               <p className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky/40 bg-sky-100/60 px-3 py-2 text-royal-800">
                 <span>Booking for an existing client – their history stays on one record.</span>
@@ -490,11 +564,24 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
                 <p className="mt-2 text-xs text-muted">This records what you will charge. No payment is taken through the website.</p>
               </fieldset>
             )}
+            {selected.series_id && (() => {
+              const series = (appointments.data?.appointments ?? []).filter((x) => x.series_id === selected.series_id).sort((p, q) => p.starts_at.localeCompare(q.starts_at));
+              const later = series.filter((x) => x.starts_at > selected.starts_at && x.status === 'confirmed').length;
+              return (
+                <p className="rounded-md border border-sky/40 bg-sky-100/60 px-3 py-2 text-sm text-royal-800">
+                  ↻ Repeating booking: session {series.findIndex((x) => x.id === selected.id) + 1} of {series.length}
+                  {later ? ` · ${later} more booked after this one` : ' · this is the last one'}.
+                </p>
+              );
+            })()}
             {can('bookings:write') && selected.status === 'confirmed' && (
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" onClick={() => setStatus(selected, 'completed')}>Mark completed</Button>
                 <Button size="sm" variant="secondary" onClick={() => setStatus(selected, 'no_show')}>Mark no-show</Button>
-                <Button size="sm" variant="danger" onClick={() => setStatus(selected, 'cancelled')}>Cancel booking</Button>
+                <Button size="sm" variant="danger" onClick={() => setStatus(selected, 'cancelled')}>{selected.series_id ? 'Cancel this one' : 'Cancel booking'}</Button>
+                {selected.series_id && (appointments.data?.appointments ?? []).some((x) => x.series_id === selected.series_id && x.starts_at > selected.starts_at && x.status === 'confirmed') && (
+                  <Button size="sm" variant="danger" onClick={() => cancelFollowing(selected)}>Cancel this and all later ones</Button>
+                )}
               </div>
             )}
           </div>

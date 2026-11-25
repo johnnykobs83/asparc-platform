@@ -18,12 +18,12 @@ export const GET = handler(async (req) => {
   }
 });
 
-/** Staff add a booking straight onto the schedule. The customer is emailed a confirmation. */
+/** Staff add a booking (once, or repeating) straight onto the schedule. The customer is emailed one confirmation. */
 export const POST = handler(async (req) => {
   const session = await requireAdmin(req, 'bookings:write');
   try {
-    const { appointment, customerEmail, preVisitForm } = await createStaffBooking(await readJson(req, 8_000), session.email);
-    return json({ appointment, customer_email: customerEmail, pre_visit_form: preVisitForm }, 201);
+    const r = await createStaffBooking(await readJson(req, 8_000), session.email);
+    return json({ appointment: r.appointment, booked: r.appointments.length, skipped: r.skipped, customer_email: r.customerEmail, pre_visit_form: r.preVisitForm }, 201);
   } catch (e) {
     if (e instanceof BookingError) return error(e.message, e.status);
     throw e;

@@ -155,7 +155,7 @@ export const DEFAULTS: { [K in TableName]?: Partial<Tables[K]> } = {
   clients: { kind: 'club', abn: null, contact_name: null, billing_email: null, phone: null, stripe_customer_id: null, status: 'active', notes: null },
   client_agreements: { agreed_value_cents: null, end_date: null, payment_terms_days: 14, inclusions: null, status: 'active' },
   client_invoices: { agreement_id: null, gst_cents: 0, amount_paid_cents: 0, paid_on: null, method: null, status: 'open', stripe_invoice_id: null, hosted_invoice_url: null, notes: null },
-  appointments: { service_id: null, status: 'confirmed', notes: null, cancel_reason: null, source: 'website', price_cents: null, final_price_cents: null, price_note: null },
+  appointments: { service_id: null, status: 'confirmed', notes: null, cancel_reason: null, source: 'website', price_cents: null, final_price_cents: null, price_note: null, series_id: null },
 };
 
 /** Tables with an updated_at column. */

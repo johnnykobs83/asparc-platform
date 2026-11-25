@@ -362,6 +362,8 @@ export interface Appointment {
   ends_at: Iso;
   /** ends_at plus the practitioner's buffer – the range that may not overlap another booking. */
   blocked_until: Iso;
+  /** Bookings made together as one repeating booking share this id (migration 000010). */
+  series_id?: Uuid | null;
   status: 'confirmed' | 'cancelled' | 'completed' | 'no_show';
   notes: string | null;
   cancel_reason: string | null;

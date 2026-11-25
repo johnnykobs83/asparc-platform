@@ -166,3 +166,64 @@ describe('Customer emails when the schedule changes', () => {
     assert.equal(calls.length, 0);
   });
 });
+
+describe('Repeating bookings', () => {
+  beforeEach(() => freshDb(RESEND));
+
+  it('books the same time every week for a number of sessions, with one email listing every date', async () => {
+    const { p, s60 } = await setup();
+    const calls = resend();
+    const r = await add({ practitioner_id: p.id, service_id: s60.id, date: DAY, minutes: 600, full_name: 'Weekly Client', email: 'weekly@example.com', repeat: { every_weeks: 1, count: 6 } });
+    assert.equal(r.status, 201);
+    const body = await r.json();
+    assert.equal(body.booked, 6);
+    assert.deepEqual(body.skipped, []);
+    const appts = (await db().list('appointments')).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+    assert.deepEqual(appts.map((a) => a.starts_at), [0, 7, 14, 21, 28, 35].map((n) => at(600, addDays(DAY, n))));
+    assert.equal(new Set(appts.map((a) => a.series_id)).size, 1);
+    assert.ok(appts[0].series_id);
+    assert.equal(appts.filter((a) => a.customer_id === appts[0].customer_id).length, 6, 'one client record');
+    const confirmations = calls.map(mail).filter((m) => /bookings are confirmed/.test(m.subject));
+    assert.equal(confirmations.length, 1);
+    assert.match(confirmations[0].text, /6 sessions/);
+    assert.equal((confirmations[0].text.match(/^• /gm) ?? []).length, 6);
+    assert.equal(calls.map(mail).filter((m) => /pre-visit form/.test(m.subject)).length, 1, 'the health form is sent once');
+  });
+
+  it('repeats every 2 weeks until a date, skipping and listing any time already taken', async () => {
+    const { p, s60 } = await setup();
+    resend();
+    await add({ practitioner_id: p.id, service_id: s60.id, date: addDays(DAY, 14), minutes: 600, full_name: 'Already There', phone: '0400 000 001' });
+    const r = await (await add({ practitioner_id: p.id, service_id: s60.id, date: DAY, minutes: 600, full_name: 'Fortnightly', phone: '0400 000 002', repeat: { every_weeks: 2, until: addDays(DAY, 56) } })).json();
+    assert.equal(r.booked, 4);
+    assert.deepEqual(r.skipped, [{ date: addDays(DAY, 14), reason: 'Already booked at that time' }]);
+  });
+
+  it('refuses repeats that are too long, end too early, or are given both ways', async () => {
+    const { p, s60 } = await setup();
+    const base = { practitioner_id: p.id, service_id: s60.id, date: DAY, minutes: 600, full_name: 'Too Long', phone: '0400 000 003' };
+    assert.equal((await add({ ...base, repeat: { every_weeks: 1, until: addDays(DAY, 400) } })).status, 422);
+    assert.equal((await add({ ...base, repeat: { every_weeks: 1, count: 53 } })).status, 422);
+    assert.equal((await add({ ...base, repeat: { every_weeks: 1, until: addDays(DAY, 3) } })).status, 422);
+    assert.equal((await add({ ...base, repeat: { every_weeks: 1, count: 4, until: addDays(DAY, 30) } })).status, 422);
+    assert.equal((await db().list('appointments')).length, 0);
+  });
+
+  it('cancels one booking, or this one and every later one, with one email', async () => {
+    const { p, s60 } = await setup();
+    resend();
+    await add({ practitioner_id: p.id, service_id: s60.id, date: DAY, minutes: 600, full_name: 'Weekly Client', email: 'weekly@example.com', repeat: { every_weeks: 1, count: 5 } });
+    const appts = (await db().list('appointments')).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+    let calls = resend();
+    await patch(appts[1].id, { status: 'cancelled' });
+    assert.equal((await db().list('appointments', { eq: { status: 'cancelled' } })).length, 1);
+    calls = resend();
+    const r = await (await patch(appts[2].id, { status: 'cancelled', scope: 'following' })).json();
+    assert.equal(r.cancelled, 3);
+    const left = (await db().list('appointments', { eq: { status: 'confirmed' } })).map((a) => a.id);
+    assert.deepEqual(left, [appts[0].id]);
+    assert.equal(calls.length, 1);
+    assert.match(mail(calls[0]).subject, /3 ASPARC bookings cancelled/);
+    assert.equal((await patch(appts[0].id, { status: 'completed', scope: 'following' })).status, 422);
+  });
+});

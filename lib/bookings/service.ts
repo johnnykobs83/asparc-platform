@@ -252,6 +252,11 @@ export async function insertAppointment(row: Partial<Appointment>): Promise<Appo
   try {
     return await db().insert('appointments', row);
   } catch (e) {
+    // Repeating bookings need migration 000010; until then each booking is saved on its own.
+    if ('series_id' in row && /series_id/.test(String(e)) && /PGRST204|42703|column|schema cache/i.test(String(e))) {
+      const { series_id: _s, ...rest } = row;
+      return insertAppointment(rest);
+    }
     if (!isMissingPriceColumn(e)) throw e;
     const { price_cents: _p, final_price_cents: _f, price_note: _n, ...rest } = row;
     return db().insert('appointments', rest);
