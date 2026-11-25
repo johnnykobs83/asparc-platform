@@ -17,6 +17,17 @@ export const NOTIFICATION_LABELS: Record<NotificationType, string> = {
   integration_error: 'Integration error',
 };
 
+/**
+ * "[ASPARC] New qualified lead: Jane Smith" – drops a title prefix that only repeats the label
+ * (the title "Qualified lead: Jane Smith" used to give "New qualified lead: Qualified lead: …").
+ */
+export function emailSubject(type: NotificationType, title: string): string {
+  const label = NOTIFICATION_LABELS[type];
+  const i = title.indexOf(': ');
+  const rest = i > 0 && label.toLowerCase().includes(title.slice(0, i).toLowerCase()) ? title.slice(i + 2) : title;
+  return `[ASPARC] ${label}: ${rest}`.slice(0, 180);
+}
+
 export interface NotifyInput {
   type: NotificationType;
   title: string;
@@ -57,7 +68,7 @@ export async function notify(input: NotifyInput): Promise<Notification> {
   const link = input.linkPath ? `${env.siteUrl}${input.linkPath}` : `${env.siteUrl}/admin/notifications`;
   const result = await sendEmail({
     to: env.notifyEmailTo,
-    subject: `[ASPARC] ${NOTIFICATION_LABELS[input.type]}: ${input.title}`.slice(0, 180),
+    subject: emailSubject(input.type, input.title),
     html: emailLayout(input.title, `<p>${escapeHtml(input.body).replace(/\n/g, '<br/>')}</p>`, { label: 'Open in dashboard', url: link }),
     text: `${input.title}\n\n${input.body}\n\n${link}`,
     entityType: 'notification',

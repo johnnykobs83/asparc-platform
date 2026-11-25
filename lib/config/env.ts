@@ -53,7 +53,8 @@ export const env = {
     return read('OPENAI_API_KEY');
   },
   get openaiModel() {
-    return read('OPENAI_MODEL') || 'gpt-4o-mini';
+    // gpt-4o-mini is removed from the OpenAI API on 14 Jan 2027; gpt-6-luna is OpenAI's replacement.
+    return read('OPENAI_MODEL') || 'gpt-6-luna';
   },
 
   // HubSpot

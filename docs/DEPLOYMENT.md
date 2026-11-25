@@ -64,7 +64,7 @@ Vercel → Project → **Settings → Domains** → add `www.asparc.com.au` and 
 
 1. platform.openai.com → create a project → **API keys** → create a key restricted to that project.
 2. **Billing →** add credit and set a **monthly usage limit** (for example US$20).
-3. Set `OPENAI_API_KEY`. `OPENAI_MODEL` defaults to `gpt-4o-mini`; any chat-completions model with function calling works.
+3. Set `OPENAI_API_KEY`. `OPENAI_MODEL` defaults to `gpt-6-luna` (gpt-4o-mini is removed from the API on 14 Jan 2027). Older chat models (e.g. `gpt-4o-mini`) and newer reasoning models both work: `lib/ai/openai.ts` sends the right parameters for each (`reasoning_effort: "none"`, which Luna needs for function calling).
 4. Dashboard → **Integrations → OpenAI → Test connection**.
 
 The safety rules, price checks and AI disclosure apply in code whichever model you choose.

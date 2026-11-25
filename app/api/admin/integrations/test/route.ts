@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { env } from '@/lib/config/env';
-import { isOpenAIConfigured } from '@/lib/ai/openai';
+import { chatCompletion, isOpenAIConfigured } from '@/lib/ai/openai';
 import { db } from '@/lib/db';
 import { handler, json, readJson, requireAdmin } from '@/lib/http/respond';
 import { testHubSpotConnection } from '@/lib/integrations/hubspot';
-import { fetchWithTimeout, logIntegration } from '@/lib/integrations/log';
+import { logIntegration } from '@/lib/integrations/log';
 import { emailLayout, sendEmail } from '@/lib/integrations/resend';
 
 export const dynamic = 'force-dynamic';
@@ -26,8 +26,16 @@ export const POST = handler(async (req) => {
     }
     case 'openai': {
       if (!isOpenAIConfigured()) { result = { ok: false, message: 'OPENAI_API_KEY is not set – guided mode is active.' }; break; }
-      const r = await fetchWithTimeout('https://api.openai.com/v1/models', { headers: { Authorization: `Bearer ${env.openaiKey}` } }).catch((e) => e as Error);
-      result = r instanceof Response && r.ok ? { ok: true, message: `Key accepted. Model in use: ${env.openaiModel}` } : { ok: false, message: r instanceof Response ? `OpenAI responded ${r.status}` : String(r) };
+      // A real request with the configured model and a tool, the same shape the receptionist sends.
+      try {
+        const msg = await chatCompletion(
+          [{ role: 'system', content: 'Connection test. Reply with the single word OK.' }, { role: 'user', content: 'Test' }],
+          [{ type: 'function', function: { name: 'noop', description: 'Not used.', parameters: { type: 'object', properties: {} } } }],
+        );
+        result = { ok: true, message: `Working. Model in use: ${env.openaiModel} (replied “${(msg.content ?? '').trim().slice(0, 40) || 'tool call'}”).` };
+      } catch (e) {
+        result = { ok: false, message: `Model ${env.openaiModel}: ${e instanceof Error ? e.message : String(e)}`.slice(0, 400) };
+      }
       await logIntegration({ integration: 'openai', action: 'connection_test', status: result.ok ? 'success' : 'error', error: result.ok ? null : result.message });
       break;
     }

@@ -18,7 +18,7 @@ Prices are indicative (checked November 2026, mostly USD) and can change, so con
 
 | # | Account | Why | Variables | Permissions | Indicative cost |
 |---|---|---|---|---|---|
-| 6 | **OpenAI** | Conversational AI receptionist (guided mode works without it) | `OPENAI_API_KEY`, `OPENAI_MODEL` | Project-scoped key; set a monthly spend limit | Usage-based. `gpt-4o-mini` lists at US$0.15 / 1M input and US$0.60 / 1M output tokens, so roughly a dollar or two per thousand chat messages at this size of prompt |
+| 6 | **OpenAI** | Conversational AI receptionist (guided mode works without it) | `OPENAI_API_KEY`, `OPENAI_MODEL` | Project-scoped key; set a monthly spend limit | Usage-based. Default model `gpt-6-luna` lists at about US$0.10 / 1M input and US$0.50 / 1M output tokens (check OpenAI's pricing page), so roughly a dollar per thousand chat messages at this size of prompt |
 | 7 | **HubSpot** | CRM & sales pipeline | `HUBSPOT_ACCESS_TOKEN`, optional `HUBSPOT_PORTAL_ID`, `HUBSPOT_PIPELINE_ID`, `HUBSPOT_STAGE_*` | Private app scopes: `crm.objects.contacts.read/write`, `crm.objects.deals.read/write`, `crm.schemas.contacts.read/write` | Free CRM: 2 users, 1 deal pipeline, **10 custom properties** (ASPARC uses 6), contact cap on newer free accounts |
 | 8 | **Resend** | Email notifications & daily summary | `RESEND_API_KEY`, `RESEND_FROM`, `NOTIFY_EMAIL_TO`, `SEND_CUSTOMER_ACKNOWLEDGEMENTS` | Verified sending domain asparc.com.au; key with sending access only | Free: 3,000 emails/month, 100/day, 1 domain |
 
