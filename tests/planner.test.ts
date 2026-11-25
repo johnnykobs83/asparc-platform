@@ -258,6 +258,52 @@ describe('Staff planner – telling staff', () => {
     assert.deepEqual(new Set((await getWeek()).body.pending_staff_ids), new Set([sam.id, alex.id]));
   });
 
+  it('sends the schedule to one person or several, and shows who still needs it', async () => {
+    const { sam, pri, alex, home, ground } = await setup();
+    const j1 = (await addJob({ location_id: ground.id, date: day(0), start_minutes: 390, end_minutes: 480, staff: [{ staff_id: sam.id }, { staff_id: pri.id }] })).body.job;
+    await addJob({ title: 'Massage clinic', job_type: 'massage_clinic', location_id: home.id, date: day(1), start_minutes: 960, end_minutes: 1200, staff: [{ staff_id: alex.id }] });
+
+    // First send to just Sam: the week is published, Priya and Alex still need it.
+    let calls = resend();
+    let r = await post(publishPOST, '/api/admin/planner/publish', { week_start: WEEK, staff_ids: [sam.id] });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.mode, 'published');
+    assert.deepEqual(calls.map(mail).map((m) => m.to[0]), ['sam@example.com']);
+    let week = (await getWeek()).body;
+    assert.ok(week.published_at);
+    assert.deepEqual(new Set(week.unsent_staff_ids), new Set([pri.id, alex.id]));
+    assert.ok(week.last_sent[sam.id]);
+
+    // "Send updates" with no one picked goes to the people who still need it.
+    calls = resend();
+    r = await post(publishPOST, '/api/admin/planner/publish', { week_start: WEEK });
+    assert.equal(r.body.recipients, 2);
+    assert.deepEqual(calls.map(mail).map((m) => m.to[0]), ['priya@example.com']); // Alex has no email
+    assert.deepEqual((await getWeek()).body.unsent_staff_ids, []);
+
+    // Resend the full week to Sam and Priya even though nothing changed.
+    calls = resend();
+    r = await post(publishPOST, '/api/admin/planner/publish', { week_start: WEEK, staff_ids: [sam.id, pri.id] });
+    assert.equal(r.body.mode, 'resent');
+    assert.deepEqual(new Set(calls.map(mail).map((m) => m.to[0])), new Set(['sam@example.com', 'priya@example.com']));
+    assert.ok(calls.map(mail).every((m) => /^Your ASPARC week/.test(m.subject)));
+
+    // After a change, sending to just Priya gives her the change and leaves Sam's change waiting.
+    await jobPATCH(req(`/api/admin/planner/jobs/${j1.id}`, { method: 'PATCH', body: { start_minutes: 420, end_minutes: 510 }, cookie: await adminCookie('owner') }), ctx(j1.id));
+    calls = resend();
+    r = await post(publishPOST, '/api/admin/planner/publish', { week_start: WEEK, staff_ids: [pri.id] });
+    assert.equal(r.body.mode, 'updates');
+    assert.match(mail(calls[0]).subject, /^Change to your ASPARC week/);
+    assert.deepEqual((await getWeek()).body.pending_staff_ids, [sam.id]);
+
+    // Only people on the week (or with changes) can be picked, and at least one.
+    const stranger = (await db().insert('staff_members', { full_name: 'Not Rostered', email: 'nr@example.com', calendar_token: 'tok_not_rostered_000000000000000000000' })).id;
+    assert.equal((await post(publishPOST, '/api/admin/planner/publish', { week_start: WEEK, staff_ids: [stranger] })).status, 422);
+    assert.equal((await post(publishPOST, '/api/admin/planner/publish', { week_start: WEEK, staff_ids: [] })).status, 422);
+    const asStaff = await publishPOST(req('/api/admin/planner/publish', { body: { week_start: WEEK, staff_ids: [sam.id] }, cookie: await adminCookie('staff') }));
+    assert.equal(asStaff.status, 403, 'staff cannot send the schedule');
+  });
+
   it('lets staff confirm from the email link, which needs a button press and a valid signature', async () => {
     const { sam, ground } = await setup();
     await addJob({ location_id: ground.id, date: day(0), start_minutes: 390, end_minutes: 480, staff: [{ staff_id: sam.id }] });

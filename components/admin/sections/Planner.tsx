@@ -69,6 +69,10 @@ interface Week {
   published_at: string | null;
   pending_staff_ids: string[];
   pending_changes: number;
+  /** When each person was last emailed this week (planner only). */
+  last_sent: Record<string, { at: string; status: string }>;
+  /** On the week but never sent it (planner only). */
+  unsent_staff_ids: string[];
   staff: Staff[];
   locations: Location[];
   leave: Leave[];
@@ -237,8 +241,9 @@ export function PlannerSection({ can }: { can: (p: string) => boolean }) {
     }
   }
 
+  const needTelling = [...new Set([...(w.unsent_staff_ids ?? []), ...w.pending_staff_ids])];
   const status = !w.jobs.length || !plan ? null : w.published_at ? (
-    w.pending_staff_ids.length ? <Badge tone="amber">{w.pending_staff_ids.length} staff not told about changes</Badge> : <Badge tone="green">Sent {sentFmt.format(new Date(w.published_at))}</Badge>
+    needTelling.length ? <Badge tone="amber">{needTelling.length} staff not sent the latest</Badge> : <Badge tone="green">Sent {sentFmt.format(new Date(w.published_at))}</Badge>
   ) : (
     <Badge>Draft – not sent to staff</Badge>
   );
@@ -249,8 +254,10 @@ export function PlannerSection({ can }: { can: (p: string) => boolean }) {
         title="Staff Planner"
         description={plan ? 'Who is working where, each day. Publish the week to email everyone their jobs; after that, only the people affected by a change get an update.' : 'Who is working where this week. Your own jobs are under My Week.'}
         actions={
-          plan && w.jobs.length > 0 && (!w.published_at || w.pending_staff_ids.length > 0) ? (
-            <Button onClick={() => setPublishing(true)}>{w.published_at ? `Send updates (${w.pending_staff_ids.length})` : 'Publish & email staff'}</Button>
+          plan && (w.jobs.length > 0 || w.pending_staff_ids.length > 0) ? (
+            <Button variant={w.published_at && !needTelling.length ? 'secondary' : 'primary'} onClick={() => setPublishing(true)}>
+              {!w.published_at ? 'Publish & email staff' : needTelling.length ? `Send updates (${needTelling.length})` : 'Send schedule'}
+            </Button>
           ) : undefined
         }
       />
@@ -910,36 +917,73 @@ function PublishDrawer({ week, onClose, onDone }: { week: Week; onClose: () => v
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const first = !week.published_at;
-  const who = first ? [...new Set(week.jobs.flatMap((j) => j.assignments.map((a) => a.staff_id)))] : week.pending_staff_ids;
-  const staff = (id: string) => week.staff.find((s) => s.id === id);
+  const onWeek = [...new Set(week.jobs.flatMap((j) => j.assignments.map((a) => a.staff_id)))];
+  // Everyone who can be sent this week: on it, or taken off it with changes they haven't heard about.
+  const people = [...new Set([...onWeek, ...week.pending_staff_ids])].sort((a, b) => (staffName(a) < staffName(b) ? -1 : 1));
+  const needs = (id: string) => first || !week.last_sent?.[id] || week.pending_staff_ids.includes(id);
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(people.filter(needs)));
+  function staffName(id: string) {
+    return week.staff.find((s) => s.id === id)?.full_name ?? 'Unknown';
+  }
+  const toggle = (id: string) =>
+    setPicked((p) => {
+      const n = new Set(p);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+
   async function send() {
     setBusy(true);
     setErr(null);
     try {
-      const r = await api<{ sent: number; recipients: number; no_email: string[]; failed: string[]; not_configured: boolean }>('/api/admin/planner/publish', { body: { week_start: week.week_start } });
+      const ids = [...picked];
+      const r = await api<{ sent: number; recipients: number; no_email: string[]; failed: string[]; not_configured: boolean }>('/api/admin/planner/publish', { body: { week_start: week.week_start, staff_ids: ids } });
       const notes = [r.no_email.length ? `No email for ${r.no_email.join(', ')} – tell them yourself.` : '', r.failed.length ? `Couldn't email ${r.failed.join(', ')}.` : '', r.not_configured ? 'Email isn’t set up (Resend), so nothing was sent.' : ''].filter(Boolean).join(' ');
-      onDone(`${first ? 'Week published' : 'Updates sent'}: ${r.sent} of ${r.recipients} emailed.${notes ? ` ${notes}` : ''}`, r.failed.length || r.not_configured ? 'err' : 'ok');
+      const who = ids.length === 1 ? staffName(ids[0]) : `${r.sent} of ${r.recipients}`;
+      onDone(`${first ? 'Week published' : 'Schedule sent'}: ${ids.length === 1 ? (r.sent ? `emailed ${who}` : `not emailed to ${who}`) : `${who} emailed`}.${notes ? ` ${notes}` : ''}`, r.failed.length || r.not_configured ? 'err' : 'ok');
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not send');
       setBusy(false);
     }
   }
+
   return (
-    <Drawer open onClose={onClose} title={first ? 'Publish & email staff' : 'Send updates'}>
+    <Drawer open onClose={onClose} title={first ? 'Publish & email staff' : 'Send schedule'}>
       <div className="space-y-4 text-sm">
-        <p>{first ? 'Each person gets one email with their jobs this week: times, addresses, access notes and who they’re working with. They also get a reminder at 6 pm the evening before each work day.' : 'Only the people whose jobs changed get an email, listing what changed and their full week.'}</p>
+        <p>
+          {first
+            ? 'Tick who to send it to – everyone is ticked to start with. Each person gets one email with only their own jobs: times, addresses, access notes and who they’re working with, plus a reminder at 6 pm the evening before each work day.'
+            : 'Tick one person or several. Anyone with changes they haven’t heard about gets a “what changed” email with their full week; everyone else gets their full week again.'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setPicked(new Set(people))}>Everyone</Button>
+          {!first && <Button size="sm" variant="secondary" onClick={() => setPicked(new Set(people.filter(needs)))}>Only those not up to date</Button>}
+          <Button size="sm" variant="ghost" onClick={() => setPicked(new Set())}>None</Button>
+        </div>
         <Panel pad={false}>
           <ul className="divide-y divide-line">
-            {who.map((id) => {
-              const s = staff(id);
+            {people.map((id) => {
+              const s = week.staff.find((x) => x.id === id);
               const count = week.jobs.filter((j) => j.assignments.some((a) => a.staff_id === id)).length;
+              const last = week.last_sent?.[id];
+              const changed = week.pending_staff_ids.includes(id);
               return (
-                <li key={id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                  <span>
-                    <span className="font-medium">{s?.full_name ?? 'Unknown'}</span>
-                    <span className="block text-xs text-muted">{count} job{count === 1 ? '' : 's'} this week</span>
-                  </span>
-                  {s?.email ? <Badge tone="blue">Email</Badge> : <Badge tone="amber">No email – tell them yourself</Badge>}
+                <li key={id}>
+                  <label className="flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-mist">
+                    <input type="checkbox" className="h-4 w-4 accent-royal" checked={picked.has(id)} onChange={() => toggle(id)} />
+                    <span className="min-w-0 flex-1">
+                      <span className="font-medium">{s?.full_name ?? 'Unknown'}</span>
+                      <span className="block text-xs text-muted">
+                        {count ? `${count} job${count === 1 ? '' : 's'} this week` : 'No jobs left this week'}
+                        {!first && (last ? ` · last sent ${sentFmt.format(new Date(last.at))}` : ' · not sent this week yet')}
+                      </span>
+                    </span>
+                    <span className="flex flex-col items-end gap-1">
+                      {!first && changed && <Badge tone="amber">Changes not sent</Badge>}
+                      {s?.email ? <Badge tone="blue">Email</Badge> : <Badge tone="neutral">No email – tell them yourself</Badge>}
+                    </span>
+                  </label>
                 </li>
               );
             })}
@@ -948,7 +992,9 @@ function PublishDrawer({ week, onClose, onDone }: { week: Week; onClose: () => v
         {err && <ErrorNote message={err} />}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={send} disabled={busy || !who.length}>{busy ? 'Sending…' : `Send to ${who.length} ${who.length === 1 ? 'person' : 'people'}`}</Button>
+          <Button onClick={send} disabled={busy || !picked.size}>
+            {busy ? 'Sending…' : picked.size === 1 ? `Send to ${staffName([...picked][0])}` : `Send to ${picked.size} people`}
+          </Button>
         </div>
       </div>
     </Drawer>

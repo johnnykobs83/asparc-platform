@@ -166,6 +166,15 @@ export async function getWeekRecord(weekStart: string) {
   return db().findOne('planner_weeks', { week_start: weekStart });
 }
 
+/** Who on a week has been emailed it, and who still needs telling (planner view). */
+export async function sendStatus(ws: string, onWeek: string[], pendingIds: string[]) {
+  const sentRows = (await db().list('staff_reminders', { eq: { ref: ws }, orderBy: 'created_at', ascending: true, limit: 2000 })).filter((r) => r.kind === 'week' || r.kind === 'update');
+  const last_sent: Record<string, { at: string; status: string }> = {};
+  for (const r of sentRows) last_sent[r.staff_id] = { at: r.created_at, status: r.status };
+  const unsent = onWeek.filter((id) => !last_sent[id]);
+  return { last_sent, unsent_staff_ids: unsent, needs_sending: [...new Set([...unsent, ...pendingIds])] };
+}
+
 /** Everything the planner screens need for one week. Planners see contact details and clients; staff don't. */
 export async function getWeek(weekStart: string, opts: { planner: boolean }) {
   if (!isYmd(weekStart)) throw new HttpError(400, 'Invalid week');
@@ -208,12 +217,18 @@ export async function getWeek(weekStart: string, opts: { planner: boolean }) {
   });
 
   const clients = opts.planner ? (await repo.list('clients', { orderBy: 'name', ascending: true, limit: 500 })).map((c) => ({ id: c.id, name: c.name })) : [];
+  const pendingIds = [...new Set(changes.map((c) => c.staff_id))];
+  const onWeek = [...new Set(assignments.map((a) => a.staff_id))];
+  const sending = opts.planner && week?.published_at ? await sendStatus(ws, onWeek, pendingIds) : null;
   return {
     week_start: ws,
     days: weekDays(ws),
     published_at: week?.published_at ?? null,
-    pending_staff_ids: opts.planner ? [...new Set(changes.map((c) => c.staff_id))] : [],
+    pending_staff_ids: opts.planner ? pendingIds : [],
     pending_changes: opts.planner ? changes.length : 0,
+    /** Planner only: when each person was last emailed this week, and who hasn't been sent it at all. */
+    last_sent: sending?.last_sent ?? {},
+    unsent_staff_ids: opts.planner ? (sending ? sending.unsent_staff_ids : week?.published_at ? [] : onWeek) : [],
     staff: opts.planner ? staff.map(publicStaff) : staff.map(colleague),
     locations: locations.map((l) => (opts.planner ? l : { ...l, client_id: null })),
     leave,

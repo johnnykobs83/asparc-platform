@@ -5,7 +5,7 @@ import type { PlannerJob, StaffMember, StaffReminder, WorkLocation } from '../db
 import { HttpError } from '../http/respond';
 import { emailLayout, escapeHtml as esc, isResendConfigured, sendEmail } from '../integrations/resend';
 import { addDays, melbourneDate } from '../time/melbourne';
-import { assignmentsFor, getWeekRecord, jobsInRange } from './service';
+import { assignmentsFor, getWeekRecord, jobsInRange, sendStatus } from './service';
 import { dayLabel, isYmd, melbourneLocal, mondayOf, weekRange, whenLabel } from './time';
 
 /**
@@ -149,12 +149,16 @@ function tally(report: SendReport, staff: StaffMember, status: SendStatus) {
   else report.not_configured = true;
 }
 
-// ------------------------------------------------------------------ publish a week / send updates
+// ------------------------------------------------------------------ publish a week / send to chosen staff
 /**
- * First time: marks the week as published and sends everyone on it their week.
- * After that: sends only the people with unsent changes, then clears those changes.
+ * Sends the week to staff.
+ * - staffIds left out: the first time, everyone on the week; after that, everyone who still
+ *   needs telling (never sent this week, or has changes they haven't been told about).
+ * - staffIds given: just those people – one person or several. Anyone with unsent changes
+ *   gets the "what changed" email; everyone else gets their full week again.
+ * The first send marks the week as published (it then shows in calendars and reminders).
  */
-export async function publishWeek(weekStart: string, actorId: string | null): Promise<SendReport & { mode: 'published' | 'updates' }> {
+export async function publishWeek(weekStart: string, actorId: string | null, opts: { staffIds?: string[] } = {}): Promise<SendReport & { mode: 'published' | 'updates' | 'resent' }> {
   if (!isYmd(weekStart)) throw new HttpError(400, 'Invalid week');
   const ws = mondayOf(weekStart);
   const repo = db();
@@ -164,46 +168,77 @@ export async function publishWeek(weekStart: string, actorId: string | null): Pr
   let week = await getWeekRecord(ws);
   const report: SendReport = { recipients: 0, sent: 0, no_email: [], failed: [], not_configured: false };
   const range = `${dayLabel(ws)} – ${dayLabel(addDays(ws, 6))}`;
+  const firstTime = !week?.published_at;
+  if (firstTime && !jobs.length) throw new HttpError(422, 'There are no jobs in this week to send yet.');
 
-  if (!week?.published_at) {
-    if (!jobs.length) throw new HttpError(422, 'There are no jobs in this week to send yet.');
-    week = week ? await repo.update('planner_weeks', week.id, { published_at: new Date().toISOString(), published_by: actorId }) : await repo.insert('planner_weeks', { week_start: ws, published_at: new Date().toISOString(), published_by: actorId });
-    for (const staffId of [...new Set(assignments.map((a) => a.staff_id))]) {
-      const staff = await repo.get('staff_members', staffId);
-      if (!staff) continue;
-      const lines = await linesFor(staffId, jobs);
-      const status = await deliver(staff, 'week', ws, `Your ASPARC week: ${range}`, 'Your week at ASPARC', `Here's where you're working ${range}:`, `Here's where you're working <strong>${esc(range)}</strong>:`, lines, { confirmWeek: ws });
-      tally(report, staff, status);
-    }
-    for (const c of await repo.list('planner_changes', { eq: { week_start: ws, notified_at: null }, limit: 1000 })) await repo.update('planner_changes', c.id, { notified_at: new Date().toISOString() });
-    return { ...report, mode: 'published' };
+  const onWeek = [...new Set(assignments.map((a) => a.staff_id))];
+  const pending = firstTime ? [] : await repo.list('planner_changes', { eq: { week_start: ws, notified_at: null }, orderBy: 'created_at', ascending: true, limit: 1000 });
+  const pendingIds = [...new Set(pending.map((c) => c.staff_id))];
+  const status = await sendStatus(ws, onWeek, pendingIds);
+
+  let targets: string[];
+  if (opts.staffIds) {
+    targets = [...new Set(opts.staffIds)];
+    const allowed = new Set([...onWeek, ...pendingIds]);
+    if (!targets.length) throw new HttpError(422, 'Choose at least one person to send to.');
+    if (targets.some((id) => !allowed.has(id))) throw new HttpError(422, 'Someone you picked has no jobs or changes in this week.');
+  } else {
+    targets = firstTime ? onWeek : status.needs_sending;
+    if (!targets.length) throw new HttpError(422, 'Everyone already has the latest version of this week.');
   }
 
-  const pending = await repo.list('planner_changes', { eq: { week_start: ws, notified_at: null }, orderBy: 'created_at', ascending: true, limit: 1000 });
-  if (!pending.length) throw new HttpError(422, 'Everyone already has the latest version of this week.');
-  for (const staffId of [...new Set(pending.map((c) => c.staff_id))]) {
+  if (firstTime) {
+    const now = new Date().toISOString();
+    week = week ? await repo.update('planner_weeks', week.id, { published_at: now, published_by: actorId }) : await repo.insert('planner_weeks', { week_start: ws, published_at: now, published_by: actorId });
+  }
+
+  let updates = 0;
+  for (const staffId of targets) {
     const staff = await repo.get('staff_members', staffId);
     const mine = pending.filter((c) => c.staff_id === staffId);
     if (staff) {
       const lines = await linesFor(staffId, jobs);
-      const changesText = mine.map((c) => `• ${c.summary}`).join('\n');
-      const changesHtml = `<ul style="padding-left:18px;margin:8px 0">${mine.map((c) => `<li>${esc(c.summary)}</li>`).join('')}</ul>`;
-      const status = await deliver(
-        staff,
-        'update',
-        ws,
-        `Change to your ASPARC week: ${range}`,
-        'Your week has changed',
-        `Your week (${range}) has changed:\n${changesText}\n\n${lines.length ? 'Your full week now:' : 'You have no jobs left this week.'}`,
-        `Your week (<strong>${esc(range)}</strong>) has changed:</p>${changesHtml}<p>${lines.length ? 'Your full week now:' : 'You have no jobs left this week.'}`,
-        lines,
-        { confirmWeek: lines.length ? ws : undefined },
-      );
-      tally(report, staff, status);
+      // They already had this week and something changed since: tell them what changed.
+      if (mine.length && status.last_sent[staffId]) {
+        updates++;
+        const changesText = mine.map((c) => `• ${c.summary}`).join('\n');
+        const changesHtml = `<ul style="padding-left:18px;margin:8px 0">${mine.map((c) => `<li>${esc(c.summary)}</li>`).join('')}</ul>`;
+        tally(
+          report,
+          staff,
+          await deliver(
+            staff,
+            'update',
+            ws,
+            `Change to your ASPARC week: ${range}`,
+            'Your week has changed',
+            `Your week (${range}) has changed:\n${changesText}\n\n${lines.length ? 'Your full week now:' : 'You have no jobs left this week.'}`,
+            `Your week (<strong>${esc(range)}</strong>) has changed:</p>${changesHtml}<p>${lines.length ? 'Your full week now:' : 'You have no jobs left this week.'}`,
+            lines,
+            { confirmWeek: lines.length ? ws : undefined },
+          ),
+        );
+      } else {
+        tally(
+          report,
+          staff,
+          await deliver(
+            staff,
+            'week',
+            ws,
+            `Your ASPARC week: ${range}`,
+            'Your week at ASPARC',
+            lines.length ? `Here's where you're working ${range}:` : `You have no jobs in the week of ${range}.`,
+            lines.length ? `Here's where you're working <strong>${esc(range)}</strong>:` : `You have no jobs in the week of <strong>${esc(range)}</strong>.`,
+            lines,
+            { confirmWeek: lines.length ? ws : undefined },
+          ),
+        );
+      }
     }
     for (const c of mine) await repo.update('planner_changes', c.id, { notified_at: new Date().toISOString() });
   }
-  return { ...report, mode: 'updates' };
+  return { ...report, mode: firstTime ? 'published' : updates ? 'updates' : 'resent' };
 }
 
 // ------------------------------------------------------------------ evening-before reminders (cron)
