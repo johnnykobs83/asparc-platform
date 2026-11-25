@@ -29,6 +29,7 @@ export interface Job {
   start_minutes: number;
   end_minutes: number;
   notes: string | null;
+  series_id?: string | null;
   assignments: Assignment[];
   issues: Issue[];
 }
@@ -334,7 +335,7 @@ export function PlannerSection({ can }: { can: (p: string) => boolean }) {
           />
           <p className="mt-2 text-xs text-muted">
             {plan ? 'Drag a job to another person, place or day, or click it to edit, change people or arrange cover. ' : 'Click a job for its details. '}
-            A red ! means a double booking, leave, or under {w.travel_buffer_minutes} min to travel between venues. A tick means the person has confirmed.
+            A red ! means a double booking, leave, or under {w.travel_buffer_minutes} min to travel between venues. ↻ means a repeating job. A tick means the person has confirmed.
             {lastSync ? ` Updated ${sentFmt.format(lastSync).split(', ').pop()}.` : ''}
           </p>
         </>
@@ -371,6 +372,7 @@ function JobChip({ job, week, staffId, plan, onOpen, onDragStart }: { job: Job; 
       {issues.length > 0 && <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-danger text-[10px] font-bold text-white" aria-label="Has a clash">!</span>}
       <span className={cx('block whitespace-nowrap font-semibold text-muted', issues.length > 0 && 'pr-4')}>
         {span(job.start_minutes, job.end_minutes)}
+        {job.series_id && <span className="ml-1 text-royal" aria-label="Repeats" title="Repeats">↻</span>}
         {mine?.acknowledged_at && <span className="ml-1 text-success" aria-label="Confirmed">✓</span>}
       </span>
       <span className="block font-medium text-charcoal">{job.title}</span>
@@ -605,6 +607,27 @@ interface Row {
   cover_reason: string;
 }
 
+const WEEKDAYS: [number, string][] = [[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri'], [6, 'Sat'], [7, 'Sun']];
+const isoDow = (ymd: string) => ((asDate(ymd).getUTCDay() + 6) % 7) + 1;
+/** Mirrors expandDates() in lib/planner/service.ts, for the preview line. */
+function previewDates(date: string, days: number[], until: string | null): string[] {
+  const set = [...new Set(days.length ? days : [isoDow(date)])].sort((a, b) => a - b);
+  const monday = mondayOf(date);
+  const last = until && until >= date ? until : addDays(monday, 6);
+  const out: string[] = [];
+  for (let wk = monday; wk <= last && out.length <= 400; wk = addDays(wk, 7)) for (const d of set) if (addDays(wk, d - 1) <= last) out.push(addDays(wk, d - 1));
+  return out;
+}
+const REPEATS: [string, string, number][] = [
+  ['none', 'This week only', 0],
+  ['4', 'Every week for 4 weeks', 4],
+  ['8', 'Every week for 8 weeks', 8],
+  ['10', 'Every week for 10 weeks (a school term)', 10],
+  ['12', 'Every week for 12 weeks', 12],
+  ['26', 'Every week for 6 months', 26],
+  ['until', 'Every week until a date…', 0],
+];
+
 function JobDrawer({ week, initial, isNew, onClose, onSaved }: { week: Week; initial: Partial<Job> & { date: string }; isNew: boolean; onClose: () => void; onSaved: (msg: string) => void }) {
   const [title, setTitle] = useState(initial.title ?? '');
   const [jobType, setJobType] = useState(initial.job_type ?? 'club_session');
@@ -618,6 +641,13 @@ function JobDrawer({ week, initial, isNew, onClose, onSaved }: { week: Week; ini
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [days, setDays] = useState<number[]>(() => [isoDow(initial.date)]);
+  const [repeat, setRepeat] = useState('none');
+  const [until, setUntil] = useState(() => addDays(initial.date, 7 * 10));
+  const [scope, setScope] = useState<'one' | 'following'>('one');
+  const inSeries = !isNew && Boolean(initial.series_id);
+  const repeatUntil = repeat === 'none' ? null : repeat === 'until' ? until : addDays(mondayOf(date), 7 * Number(repeat) - 1);
+  const preview = isNew ? previewDates(date, days, repeatUntil) : [];
   const active = week.staff.filter((s) => s.active);
   const free = active.filter((s) => !people.some((p) => p.staff_id === s.id));
   const issues = (initial.issues ?? []) as Issue[];
@@ -638,9 +668,13 @@ function JobDrawer({ week, initial, isNew, onClose, onSaved }: { week: Week; ini
       staff: people.filter((p) => p.staff_id).map((p) => ({ staff_id: p.staff_id, covering_for_staff_id: p.covering_for_staff_id || null, cover_reason: p.cover_reason || null })),
     };
     try {
-      if (isNew) await api('/api/admin/planner/jobs', { body });
-      else await api(`/api/admin/planner/jobs/${initial.id}`, { method: 'PATCH', body });
-      onSaved(isNew ? 'Job added' : 'Job saved');
+      if (isNew) {
+        const r = await api<{ created: number }>('/api/admin/planner/jobs', { body: { ...body, days, repeat_until: repeatUntil } });
+        onSaved(r.created > 1 ? `${r.created} jobs added` : 'Job added');
+      } else {
+        const r = await api<{ updated: number }>(`/api/admin/planner/jobs/${initial.id}`, { method: 'PATCH', body: { ...body, ...(scope === 'following' ? { date: undefined } : {}), scope } });
+        onSaved(r.updated > 1 ? `${r.updated} jobs updated` : 'Job saved');
+      }
     } catch (e2) {
       setErr(e2 instanceof ApiError && e2.fields ? Object.values(e2.fields).join(' · ') : e2 instanceof Error ? e2.message : 'Could not save');
       setBusy(false);
@@ -651,8 +685,9 @@ function JobDrawer({ week, initial, isNew, onClose, onSaved }: { week: Week; ini
     if (!confirmDelete) return setConfirmDelete(true);
     setBusy(true);
     try {
-      await api(`/api/admin/planner/jobs/${initial.id}`, { method: 'DELETE' });
-      onSaved(week.published_at ? 'Job deleted – send updates so staff know' : 'Job deleted');
+      const r = await api<{ deleted: number }>(`/api/admin/planner/jobs/${initial.id}${scope === 'following' ? '?scope=following' : ''}`, { method: 'DELETE' });
+      const what = r.deleted > 1 ? `${r.deleted} jobs deleted` : 'Job deleted';
+      onSaved(week.published_at ? `${what} – send updates so staff know` : what);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not delete');
       setBusy(false);
@@ -682,8 +717,8 @@ function JobDrawer({ week, initial, isNew, onClose, onSaved }: { week: Week; ini
             </select>
           </div>
           <div>
-            <label className="field-label" htmlFor="job-date">Day</label>
-            <input id="job-date" type="date" className="field" required value={date} onChange={(e) => setDate(e.target.value)} />
+            <label className="field-label" htmlFor="job-date">{isNew ? 'Week of / first day' : 'Day'}</label>
+            <input id="job-date" type="date" className="field" required value={date} disabled={scope === 'following'} onChange={(e) => { setDate(e.target.value); if (isNew && e.target.value && days.length === 1) setDays([isoDow(e.target.value)]); }} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -705,6 +740,51 @@ function JobDrawer({ week, initial, isNew, onClose, onSaved }: { week: Week; ini
             </div>
           )}
         </div>
+
+        {isNew && (
+          <fieldset className="rounded-lg border border-line bg-white p-3">
+            <legend className="px-1 text-sm font-medium text-charcoal">Days and repeat</legend>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Days of the week">
+              {WEEKDAYS.map(([n, l]) => {
+                const on = days.includes(n);
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setDays(on ? (days.length > 1 ? days.filter((d) => d !== n) : days) : [...days, n])}
+                    className={cx('min-h-[40px] min-w-[48px] rounded-md border px-2 text-sm font-semibold', on ? 'border-royal bg-royal text-white' : 'border-line bg-white text-charcoal hover:border-royal')}
+                  >
+                    {l}
+                  </button>
+                );
+              })}
+              <Button size="sm" variant="ghost" onClick={() => setDays([1, 2, 3, 4, 5])}>Weekdays</Button>
+            </div>
+            <div className={cx('mt-3 grid gap-2', repeat === 'until' && 'sm:grid-cols-2')}>
+              <select aria-label="Repeat" className="field" value={repeat} onChange={(e) => setRepeat(e.target.value)}>
+                {REPEATS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+              {repeat === 'until' && <input aria-label="Repeat until" type="date" className="field" min={date} value={until} onChange={(e) => setUntil(e.target.value)} />}
+            </div>
+            <p className={cx('mt-2 text-xs', preview.length > 200 ? 'font-semibold text-danger' : 'text-muted')}>
+              {preview.length > 200
+                ? `That's ${preview.length} jobs – the most at once is 200.`
+                : `Adds ${preview.length} job${preview.length === 1 ? '' : 's'}${preview.length ? `: ${dayLabel(preview[0])}${preview.length > 1 ? ` to ${dayLabel(preview[preview.length - 1])}` : ''}` : ''}.`}
+              {preview.length > 1 && ' They stay linked, so you can change or delete the rest of them in one go later.'}
+            </p>
+          </fieldset>
+        )}
+        {inSeries && (
+          <fieldset className="rounded-lg border border-sky/40 bg-sky-100/50 p-3">
+            <legend className="px-1 text-sm font-medium text-royal-800">This job repeats</legend>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <label className="inline-flex items-center gap-2"><input type="radio" name="scope" className="accent-royal" checked={scope === 'one'} onChange={() => setScope('one')} /> Just this one</label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="scope" className="accent-royal" checked={scope === 'following'} onChange={() => { setScope('following'); setDate(initial.date); }} /> This one and all later ones</label>
+            </div>
+            <p className="mt-1 text-xs text-muted">Saving or deleting applies to what you pick here. To move days, change just this one.</p>
+          </fieldset>
+        )}
 
         <fieldset>
           <legend className="field-label">Who&apos;s on this job</legend>
@@ -745,10 +825,10 @@ function JobDrawer({ week, initial, isNew, onClose, onSaved }: { week: Week; ini
         )}
         {err && <ErrorNote message={err} />}
         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
-          {!isNew && <Button variant="danger" onClick={remove} disabled={busy}>{confirmDelete ? 'Tap again to delete' : 'Delete job'}</Button>}
+          {!isNew && <Button variant="danger" onClick={remove} disabled={busy}>{confirmDelete ? 'Tap again to delete' : scope === 'following' ? 'Delete this and later' : 'Delete job'}</Button>}
           <div className="ml-auto flex gap-2">
             <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={busy}>{busy ? 'Saving…' : isNew ? 'Add job' : 'Save'}</Button>
+            <Button type="submit" disabled={busy || preview.length > 200}>{busy ? 'Saving…' : isNew ? (preview.length > 1 ? `Add ${preview.length} jobs` : 'Add job') : scope === 'following' ? 'Save this and later' : 'Save'}</Button>
           </div>
         </div>
         {week.published_at && <p className="text-xs text-muted">This week has been sent. Changes are collected and go out when you press Send updates.</p>}

@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { env } from '../config/env';
 import { db } from '../db';
@@ -57,6 +57,10 @@ const JobFields = z.object({
   end_minutes: z.number().int().min(1).max(1440),
   notes: optText(2000),
   staff: z.array(AssignmentInput).max(20).default([]),
+  /** New jobs only: put the job on these weekdays (1 = Monday … 7 = Sunday) of the chosen week. */
+  days: z.array(z.number().int().min(1).max(7)).max(7).optional(),
+  /** New jobs only: repeat every week up to and including this date. */
+  repeat_until: z.preprocess(blankToNull, ymd.nullable().optional()),
 });
 const staffOk = (v: { staff?: { staff_id: string; covering_for_staff_id?: string | null }[] }) =>
   !v.staff || (new Set(v.staff.map((s) => s.staff_id)).size === v.staff.length && v.staff.every((s) => s.covering_for_staff_id !== s.staff_id));
@@ -64,7 +68,10 @@ export const JobInput = JobFields.refine((v) => v.end_minutes > v.start_minutes,
   message: 'Each person can only be on a job once, and can’t cover themselves',
   path: ['staff'],
 });
-export const JobPatch = JobFields.partial().refine(staffOk, { message: 'Each person can only be on a job once, and can’t cover themselves', path: ['staff'] });
+export const JobPatch = JobFields.omit({ days: true, repeat_until: true }).partial().extend({
+  /** For a repeating job: change just this one, or this one and the later ones in the series. */
+  scope: z.enum(['one', 'following']).default('one'),
+}).refine(staffOk, { message: 'Each person can only be on a job once, and can’t cover themselves', path: ['staff'] });
 
 export const LeaveInput = z
   .object({ staff_id: uuid, start_date: ymd, end_date: ymd, reason: z.enum(LEAVE_REASONS).default('leave') })
@@ -93,6 +100,7 @@ export interface WeekJob {
   start_minutes: number;
   end_minutes: number;
   notes: string | null;
+  series_id: string | null;
   assignments: Pick<PlannerAssignment, 'id' | 'staff_id' | 'covering_for_staff_id' | 'cover_reason' | 'acknowledged_at'>[];
   issues: Issue[];
 }
@@ -193,6 +201,7 @@ export async function getWeek(weekStart: string, opts: { planner: boolean }) {
       start_minutes: s.minutes,
       end_minutes: e.ymd === s.ymd ? e.minutes : 1440,
       notes: j.notes,
+      series_id: j.series_id ?? null,
       assignments: assignments.filter((a) => a.job_id === j.id).map(({ id, staff_id, covering_for_staff_id, cover_reason, acknowledged_at }) => ({ id, staff_id, covering_for_staff_id, cover_reason, acknowledged_at })),
       issues: issues.get(j.id) ?? [],
     };
@@ -246,8 +255,24 @@ const times = (date: string, start: number, end: number) => {
   return { starts_at: starts.toISOString(), ends_at: ends.toISOString() };
 };
 
-export async function createJob(input: z.infer<typeof JobInput>, actorId: string | null) {
-  await checkRefs(input);
+export const MAX_JOBS_AT_ONCE = 200;
+
+/** The dates a new job goes on: the chosen weekdays of its week, then every week until repeat_until. */
+export function expandDates(date: string, days?: number[] | null, repeatUntil?: string | null): string[] {
+  const isoDow = ((new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7) + 1;
+  const weekdays = [...new Set(days?.length ? days : [isoDow])].sort((a, b) => a - b);
+  const monday = mondayOf(date);
+  const last = repeatUntil && repeatUntil >= date ? repeatUntil : addDays(monday, 6);
+  if (Date.parse(`${last}T00:00:00Z`) - Date.parse(`${date}T00:00:00Z`) > 371 * 86400000) throw new HttpError(422, 'Repeat for a year at most');
+  const out: string[] = [];
+  for (let wk = monday; wk <= last; wk = addDays(wk, 7)) for (const d of weekdays) {
+    const day = addDays(wk, d - 1);
+    if (day <= last) out.push(day);
+  }
+  return out;
+}
+
+async function insertJob(input: z.infer<typeof JobInput>, date: string, seriesId: string | null, actorId: string | null) {
   const repo = db();
   const job = await repo.insert('planner_jobs', {
     title: input.title,
@@ -256,7 +281,8 @@ export async function createJob(input: z.infer<typeof JobInput>, actorId: string
     client_id: input.client_id ?? null,
     notes: input.notes ?? null,
     created_by: actorId,
-    ...times(input.date, input.start_minutes, input.end_minutes),
+    ...(seriesId ? { series_id: seriesId } : {}),
+    ...times(date, input.start_minutes, input.end_minutes),
   });
   for (const s of input.staff) await repo.insert('planner_assignments', { job_id: job.id, staff_id: s.staff_id, covering_for_staff_id: s.covering_for_staff_id ?? null, cover_reason: s.cover_reason ?? null });
   const what = await describe(job);
@@ -264,11 +290,45 @@ export async function createJob(input: z.infer<typeof JobInput>, actorId: string
   return job;
 }
 
+/** Adds a job – or a set of them, on several days and/or repeating weekly (one series). Returns the first. */
+export async function createJob(input: z.infer<typeof JobInput>, actorId: string | null) {
+  await checkRefs(input);
+  const dates = expandDates(input.date, input.days, input.repeat_until);
+  if (dates.length > MAX_JOBS_AT_ONCE) throw new HttpError(422, `That would add ${dates.length} jobs – the most at once is ${MAX_JOBS_AT_ONCE}. Pick fewer days or an earlier end date.`);
+  const seriesId = dates.length > 1 ? randomUUID() : null;
+  let first: PlannerJob | null = null;
+  for (const d of dates) {
+    const job = await insertJob(input, d, seriesId, actorId);
+    first ??= job;
+  }
+  return Object.assign(first!, { created: dates.length });
+}
+
+/** The jobs a change or delete applies to: just this one, or this one and the later ones in its series. */
+async function targets(job: PlannerJob, scope: 'one' | 'following'): Promise<PlannerJob[]> {
+  if (scope === 'one' || !job.series_id) return [job];
+  const series = await db().list('planner_jobs', { eq: { series_id: job.series_id }, orderBy: 'starts_at', ascending: true, limit: 1000 });
+  return series.filter((j) => j.status === 'scheduled' && Date.parse(j.starts_at) >= Date.parse(job.starts_at));
+}
+
 export async function updateJob(id: string, patch: z.infer<typeof JobPatch>) {
-  const repo = db();
-  const job = await repo.get('planner_jobs', id);
+  const job = await db().get('planner_jobs', id);
   if (!job || job.status !== 'scheduled') throw new HttpError(404, 'Job not found');
   await checkRefs(patch);
+  const { scope, ...rest } = patch;
+  const list = await targets(job, scope ?? 'one');
+  let first: PlannerJob | null = null;
+  for (const j of list) {
+    // A new day only applies to the job that was opened; the others keep their own days.
+    const updated = await updateOne(j, j.id === job.id ? rest : { ...rest, date: undefined });
+    first ??= updated;
+  }
+  return Object.assign(first!, { updated: list.length });
+}
+
+async function updateOne(job: PlannerJob, patch: Omit<z.infer<typeof JobPatch>, 'scope'>) {
+  const repo = db();
+  const id = job.id;
   const was = melbourneLocal(job.starts_at);
   const wasEnd = melbourneLocal(job.ends_at);
   const date = patch.date ?? was.ymd;
@@ -332,10 +392,17 @@ export async function updateJob(id: string, patch: z.infer<typeof JobPatch>) {
   return updated;
 }
 
-export async function deleteJob(id: string) {
-  const repo = db();
-  const job = await repo.get('planner_jobs', id);
+export async function deleteJob(id: string, scope: 'one' | 'following' = 'one') {
+  const job = await db().get('planner_jobs', id);
   if (!job) throw new HttpError(404, 'Job not found');
+  const list = await targets(job, scope);
+  for (const j of list) await deleteOne(j);
+  return list.length;
+}
+
+async function deleteOne(job: PlannerJob) {
+  const repo = db();
+  const id = job.id;
   const current = await repo.list('planner_assignments', { eq: { job_id: id } });
   const what = await describe(job);
   await recordChanges(job, current.map((a) => ({ staffId: a.staff_id, summary: `Cancelled: ${what}` })));

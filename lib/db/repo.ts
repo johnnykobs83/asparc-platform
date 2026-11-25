@@ -135,7 +135,7 @@ export const DEFAULTS: { [K in TableName]?: Partial<Tables[K]> } = {
   practitioners: { title: null, service_ids: [], weekly_hours: {}, buffer_minutes: 0, active: true },
   staff_members: { email: null, phone: null, role_title: null, employment_type: 'employee', admin_user_id: null, active: true },
   work_locations: { kind: 'other', address: null, access_notes: null, colour: '#14519C', client_id: null, active: true },
-  planner_jobs: { job_type: 'other', client_id: null, notes: null, status: 'scheduled', created_by: null },
+  planner_jobs: { job_type: 'other', client_id: null, notes: null, status: 'scheduled', series_id: null, created_by: null },
   planner_assignments: { covering_for_staff_id: null, cover_reason: null, acknowledged_at: null },
   planner_weeks: { published_at: null, published_by: null },
   planner_changes: { job_id: null, notified_at: null },

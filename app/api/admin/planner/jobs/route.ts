@@ -5,6 +5,6 @@ export const dynamic = 'force-dynamic';
 
 export const POST = handler(async (req) => {
   const session = await requireAdmin(req, 'planner:write');
-  const job = await createJob(JobInput.parse(await readJson(req)), session.sub);
-  return json({ job }, 201);
+  const { created, ...job } = await createJob(JobInput.parse(await readJson(req)), session.sub);
+  return json({ job, created }, 201);
 });

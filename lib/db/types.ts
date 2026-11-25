@@ -420,6 +420,8 @@ export interface PlannerJob {
   ends_at: Iso;
   notes: string | null;
   status: 'scheduled' | 'cancelled';
+  /** Jobs added together (several days and/or repeating weekly) share a series. Absent until migration 000008. */
+  series_id?: Uuid | null;
   created_by: Uuid | null;
   created_at: Iso;
   updated_at: Iso;

@@ -7,12 +7,13 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export const PATCH = handler(async (req, { params }: Ctx) => {
   await requireAdmin(req, 'planner:write');
-  const job = await updateJob((await params).id, JobPatch.parse(await readJson(req)));
-  return json({ job });
+  const { updated, ...job } = await updateJob((await params).id, JobPatch.parse(await readJson(req)));
+  return json({ job, updated });
 });
 
 export const DELETE = handler(async (req, { params }: Ctx) => {
   await requireAdmin(req, 'planner:write');
-  await deleteJob((await params).id);
-  return json({ ok: true });
+  const scope = new URL(req.url).searchParams.get('scope') === 'following' ? 'following' : 'one';
+  const deleted = await deleteJob((await params).id, scope);
+  return json({ ok: true, deleted });
 });

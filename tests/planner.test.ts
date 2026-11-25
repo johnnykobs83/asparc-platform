@@ -17,6 +17,7 @@ import { signSession } from '../lib/auth/session';
 import { db } from '../lib/db';
 import type { Role } from '../lib/db/types';
 import { buildCalendarFeed, confirmToken, runDayBeforeReminders } from '../lib/planner/notify';
+import { expandDates } from '../lib/planner/service';
 import { localToUtc, mondayOf } from '../lib/planner/time';
 import { addDays, melbourneDate } from '../lib/time/melbourne';
 import { adminCookie, ctx, freshDb, mockFetch, req, type FetchCall } from './helpers';
@@ -123,6 +124,64 @@ describe('Staff planner – planning a week', () => {
     assert.equal(next.jobs[0].date, addDays(day(3), 7));
     assert.deepEqual(next.jobs[0].assignments.map((x: { staff_id: string; covering_for_staff_id: string | null }) => [x.staff_id, x.covering_for_staff_id]), [[sam.id, null]]);
     assert.equal((await post(copyPOST, '/api/admin/planner/copy', { from: WEEK, to: addDays(WEEK, 7) })).status, 409, 'never copies on top of an existing week');
+  });
+});
+
+describe('Staff planner – several days and repeating weeks', () => {
+  beforeEach(() => freshDb());
+
+  it('works out the dates: chosen weekdays of the week, then every week until the end date', () => {
+    const mon = '2026-11-30';
+    assert.deepEqual(expandDates('2026-12-02'), ['2026-12-02'], 'no days or repeat: just the day');
+    assert.deepEqual(expandDates('2026-12-02', [1, 3, 5]), ['2026-11-30', '2026-12-02', '2026-12-04'], 'all chosen days of that week');
+    assert.deepEqual(expandDates(mon, [2, 4], '2026-12-17'), ['2026-12-01', '2026-12-03', '2026-12-08', '2026-12-10', '2026-12-15', '2026-12-17']);
+    assert.deepEqual(expandDates(mon, null, '2026-12-21'), ['2026-11-30', '2026-12-07', '2026-12-14', '2026-12-21'], 'same weekday every week');
+    assert.equal(expandDates(mon, [1, 2, 3, 4, 5], '2027-02-26').length, 65, 'a school term of weekdays');
+    assert.throws(() => expandDates(mon, null, '2028-01-01'), /a year at most/);
+  });
+
+  it('adds a repeating job as one series, and changes or deletes "this and following"', async () => {
+    const { sam, pri, ground } = await setup();
+    const r = await addJob({ location_id: ground.id, date: day(0), start_minutes: 390, end_minutes: 480, staff: [{ staff_id: sam.id }], days: [1, 3, 5], repeat_until: addDays(WEEK, 27) });
+    assert.equal(r.status, 201);
+    assert.equal(r.body.created, 12, '3 days x 4 weeks');
+    const all = await db().list('planner_jobs', { orderBy: 'starts_at', ascending: true });
+    assert.equal(all.length, 12);
+    assert.ok(all.every((j) => j.series_id && j.series_id === all[0].series_id));
+    assert.equal((await getWeek()).body.jobs.length, 3);
+    assert.equal((await getWeek('owner', addDays(WEEK, 21))).body.jobs.length, 3);
+
+    // From week 2 on, Priya takes over and it starts later. Week 1 is untouched.
+    const wk2wed = all[4];
+    const p = await jobPATCH(req(`/api/admin/planner/jobs/${wk2wed.id}`, { method: 'PATCH', body: { start_minutes: 420, end_minutes: 510, staff: [{ staff_id: pri.id }], scope: 'following' }, cookie: await adminCookie('owner') }), ctx(wk2wed.id));
+    assert.equal((await p.json()).updated, 8, 'Wed of week 2 to the end');
+    const after = (await getWeek('owner', addDays(WEEK, 7))).body.jobs as { date: string; start_minutes: number; assignments: { staff_id: string }[] }[];
+    assert.deepEqual(after.map((j) => [j.date, j.start_minutes, j.assignments[0].staff_id]), [
+      [addDays(WEEK, 7), 390, sam.id],
+      [addDays(WEEK, 9), 420, pri.id],
+      [addDays(WEEK, 11), 420, pri.id],
+    ]);
+    assert.equal((await getWeek()).body.jobs[0].start_minutes, 390);
+
+    // Changing just one leaves the rest alone.
+    const one = all[0];
+    await jobPATCH(req(`/api/admin/planner/jobs/${one.id}`, { method: 'PATCH', body: { title: 'Changed once' }, cookie: await adminCookie('owner') }), ctx(one.id));
+    assert.equal((await db().list('planner_jobs')).filter((j) => j.title === 'Changed once').length, 1);
+
+    // Delete the last two weeks only.
+    const wk3mon = (await db().list('planner_jobs', { orderBy: 'starts_at', ascending: true }))[6];
+    const d = await jobDELETE(req(`/api/admin/planner/jobs/${wk3mon.id}?scope=following`, { method: 'DELETE', cookie: await adminCookie('owner') }), ctx(wk3mon.id));
+    assert.equal((await d.json()).deleted, 6);
+    assert.equal((await db().list('planner_jobs')).length, 6);
+    assert.equal((await db().list('planner_assignments')).length, 6);
+  });
+
+  it('refuses to add more than 200 jobs at once', async () => {
+    const { sam, ground } = await setup();
+    const r = await addJob({ location_id: ground.id, date: day(0), start_minutes: 390, end_minutes: 480, staff: [{ staff_id: sam.id }], days: [1, 2, 3, 4, 5, 6, 7], repeat_until: addDays(WEEK, 7 * 30) });
+    assert.equal(r.status, 422);
+    assert.match(r.body.error, /the most at once is 200/);
+    assert.equal((await db().list('planner_jobs')).length, 0);
   });
 });
 
