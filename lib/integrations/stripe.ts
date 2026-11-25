@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { env } from '../config/env';
 import { db } from '../db';
 import type { Payment } from '../db/types';
+import { syncStripeInvoice } from '../finance/service';
 import { notify } from '../notifications/service';
 import { logIntegration } from './log';
 
@@ -215,6 +216,16 @@ async function onInvoice(type: string, inv: Record<string, unknown>, eventCreate
   return 'invoice paid';
 }
 
+/** Keeps the owner's client billing in step. Never fails the webhook. */
+async function clientBilling(type: string, object: Record<string, unknown>): Promise<string> {
+  try {
+    return await syncStripeInvoice(type, object);
+  } catch (e) {
+    await logIntegration({ integration: 'stripe', action: `${type}:client_billing`, status: 'error', error: String(e) });
+    return 'client billing: error';
+  }
+}
+
 /** Processes a verified Stripe event. Idempotent: Stripe may deliver an event more than once. */
 export async function handleStripeEvent(event: StripeEvent): Promise<{ handled: boolean; outcome: string }> {
   const object = event.data?.object ?? {};
@@ -233,6 +244,12 @@ export async function handleStripeEvent(event: StripeEvent): Promise<{ handled: 
       case 'invoice.payment_failed':
       case 'invoice.updated':
         outcome = await onInvoice(event.type, object, event.created);
+        await clientBilling(event.type, object);
+        break;
+      case 'invoice.finalized':
+      case 'invoice.voided':
+        // Only used by the owner's Clients & billing page.
+        outcome = await clientBilling(event.type, object);
         break;
       default:
         return { handled: false, outcome: 'ignored: event type not used' };

@@ -6,6 +6,9 @@ import type { Role } from '../db/types';
  *   owner   – everything
  *   manager – everything except admin user management
  *   staff   – view all + work leads, bookings, academy, conversations, notifications
+ *
+ * Staff planner: everyone can see the week and their own jobs; owners and managers plan it.
+ * Client billing (clients, agreements, invoices, what each client spends): the OWNER only.
  */
 export const PERMISSIONS = {
   'dashboard:view': ['owner', 'manager', 'staff'],
@@ -20,6 +23,9 @@ export const PERMISSIONS = {
   'integrations:view': ['owner', 'manager'],
   'integrations:run': ['owner', 'manager'],
   'revenue:view': ['owner', 'manager'],
+  'planner:view': ['owner', 'manager', 'staff'],
+  'planner:write': ['owner', 'manager'],
+  'finance:manage': ['owner'],
   'users:manage': ['owner'],
   'data:delete': ['owner'],
 } as const satisfies Record<string, readonly Role[]>;

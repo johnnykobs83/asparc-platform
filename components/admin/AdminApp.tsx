@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, useApi } from './api';
-import { SECTIONS, type SectionKey } from './sections-config';
+import { SECTIONS, sectionPermission, type SectionKey } from './sections-config';
 
 export { SECTIONS, type SectionKey };
 import { ErrorNote, Loading, cx } from './ui';
@@ -10,6 +10,8 @@ import { Logo } from '../site/Logo';
 import { Overview } from './sections/Overview';
 import { AcademySection, BookingsSection, ConversationsSection, LeadsSection } from './sections/Pipeline';
 import { KnowledgeSection, PricingSection } from './sections/Content';
+import { MyWeekSection, PlannerSection } from './sections/Planner';
+import { ClientsSection } from './sections/Clients';
 import { IntegrationsSection, NotificationsSection, ReportsSection, RevenueSection, SettingsSection } from './sections/System';
 
 export interface Me {
@@ -26,12 +28,15 @@ export function AdminApp({ section }: { section: string }) {
   if (me.loading && !me.data) return <div className="min-h-screen bg-mist p-10"><Loading /></div>;
   if (me.error || !me.data) return <div className="min-h-screen bg-mist p-10"><ErrorNote message={me.error ?? 'Not signed in'} /></div>;
 
-  const current = SECTIONS.find((s) => s.key === section);
   const can = (p: string) => me.data!.permissions.includes(p);
+  const current = SECTIONS.find((s) => s.key === section && (!sectionPermission(s.key) || can(sectionPermission(s.key)!)));
 
   const body = (() => {
     switch (section as SectionKey) {
       case 'overview': return <Overview />;
+      case 'planner': return can('planner:view') ? <PlannerSection can={can} /> : <NoAccess />;
+      case 'my-week': return <MyWeekSection />;
+      case 'clients': return can('finance:manage') ? <ClientsSection /> : <ErrorNote message="Section not found" />;
       case 'conversations': return <ConversationsSection can={can} />;
       case 'leads': return <LeadsSection can={can} />;
       case 'bookings': return <BookingsSection can={can} />;
@@ -58,7 +63,10 @@ export function AdminApp({ section }: { section: string }) {
         </a>
         <nav aria-label="Dashboard" className="relative flex-1 overflow-y-auto px-3 py-4">
           <ul className="space-y-0.5">
-            {SECTIONS.map((s) => {
+            {SECTIONS.filter((s) => {
+              const p = sectionPermission(s.key);
+              return !p || can(p);
+            }).map((s) => {
               const active = s.key === section;
               return (
                 <li key={s.key}>
@@ -101,7 +109,7 @@ export function AdminApp({ section }: { section: string }) {
           <div className="flex items-center gap-2">
             <a href="/" target="_blank" rel="noopener" className="hidden rounded-md px-3 py-1.5 text-sm text-muted hover:bg-mist hover:text-charcoal sm:inline-block">View website ↗</a>
             <a href="/admin/notifications" className="relative rounded-md p-2 text-muted hover:bg-mist hover:text-charcoal" aria-label={`Notifications (${unread.data?.unread ?? 0} unread)`}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={SECTIONS[8].icon} /></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={SECTIONS.find((x) => x.key === 'notifications')!.icon} /></svg>
               {(unread.data?.unread ?? 0) > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-danger" />}
             </a>
             <button

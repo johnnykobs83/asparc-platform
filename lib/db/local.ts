@@ -53,6 +53,12 @@ export class LocalRepo implements Repo {
         } else if (cell !== v) return false;
       }
     }
+    if (opts.range) {
+      const v = r[opts.range.column as string] as string | null | undefined;
+      if (v == null) return false;
+      if (opts.range.gte && v < opts.range.gte) return false;
+      if (opts.range.lt && v >= opts.range.lt) return false;
+    }
     const created = r.created_at as string | undefined;
     if (opts.since && created && created < opts.since) return false;
     if (opts.until && created && created >= opts.until) return false;

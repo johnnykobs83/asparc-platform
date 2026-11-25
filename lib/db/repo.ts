@@ -9,6 +9,8 @@ export interface ListOptions<T extends TableName> {
   since?: string;
   /** created_at < until (ISO) */
   until?: string;
+  /** Range on another column: column >= gte and column < lt (ISO timestamps or YYYY-MM-DD dates). */
+  range?: { column: keyof Row<T>; gte?: string; lt?: string };
   orderBy?: keyof Row<T>;
   ascending?: boolean;
   limit?: number;
@@ -131,6 +133,16 @@ export const DEFAULTS: { [K in TableName]?: Partial<Tables[K]> } = {
   daily_summaries: { timezone: 'Australia/Melbourne', email_status: 'not_required' },
   admin_users: { full_name: null, role: 'staff', active: true, password_hash: null, last_login_at: null },
   practitioners: { title: null, service_ids: [], weekly_hours: {}, buffer_minutes: 0, active: true },
+  staff_members: { email: null, phone: null, role_title: null, employment_type: 'employee', admin_user_id: null, active: true },
+  work_locations: { kind: 'other', address: null, access_notes: null, colour: '#14519C', client_id: null, active: true },
+  planner_jobs: { job_type: 'other', client_id: null, notes: null, status: 'scheduled', created_by: null },
+  planner_assignments: { covering_for_staff_id: null, cover_reason: null, acknowledged_at: null },
+  planner_weeks: { published_at: null, published_by: null },
+  planner_changes: { job_id: null, notified_at: null },
+  staff_leave: { reason: 'leave' },
+  clients: { kind: 'club', abn: null, contact_name: null, billing_email: null, phone: null, stripe_customer_id: null, status: 'active', notes: null },
+  client_agreements: { agreed_value_cents: null, end_date: null, payment_terms_days: 14, inclusions: null, status: 'active' },
+  client_invoices: { agreement_id: null, gst_cents: 0, amount_paid_cents: 0, paid_on: null, method: null, status: 'open', stripe_invoice_id: null, hosted_invoice_url: null, notes: null },
   appointments: { service_id: null, status: 'confirmed', notes: null, cancel_reason: null, source: 'website', price_cents: null, final_price_cents: null, price_note: null },
 };
 
@@ -146,4 +158,12 @@ export const HAS_UPDATED_AT: ReadonlySet<TableName> = new Set<TableName>([
   'academy_registrations',
   'practitioners',
   'appointments',
+  'staff_members',
+  'work_locations',
+  'planner_jobs',
+  'planner_assignments',
+  'planner_weeks',
+  'clients',
+  'client_agreements',
+  'client_invoices',
 ]);

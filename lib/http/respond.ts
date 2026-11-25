@@ -62,6 +62,18 @@ export async function requireAdmin(req: Request, permission: Permission = 'dashb
   return session;
 }
 
+/**
+ * Like requireAdmin, but answers 404 instead of 403 to anyone without the permission,
+ * so the owner-only billing routes don't reveal that they exist.
+ */
+export async function requireHidden(req: Request, permission: Permission): Promise<Session> {
+  const session = await verifySession(readCookie(req, SESSION_COOKIE));
+  if (!session) throw new HttpError(401, 'Please sign in.');
+  if (!can(session.role, permission)) throw new HttpError(404, 'Not found');
+  assertSameOrigin(req);
+  return session;
+}
+
 /** Wraps a route handler with uniform error handling. */
 export function handler<A extends unknown[]>(fn: (req: Request, ...args: A) => Promise<Response>) {
   return async (req: Request, ...args: A): Promise<Response> => {

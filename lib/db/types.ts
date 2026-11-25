@@ -366,6 +366,176 @@ export interface Appointment {
   updated_at: Iso;
 }
 
+// ------------------------------------------------------------------ staff planner
+export const JOB_TYPES = ['club_session', 'testing', 'academy', 'one_to_one', 'massage_clinic', 'match_day', 'admin', 'other'] as const;
+export type JobType = (typeof JOB_TYPES)[number];
+export const JOB_TYPE_LABELS: Record<JobType, string> = {
+  club_session: 'Club session',
+  testing: 'Testing',
+  academy: 'Academy',
+  one_to_one: '1:1 sessions',
+  massage_clinic: 'Massage clinic',
+  match_day: 'Match day',
+  admin: 'Admin',
+  other: 'Other',
+};
+export const LOCATION_KINDS = ['asparc', 'club', 'school', 'client_site', 'other'] as const;
+export const LEAVE_REASONS = ['leave', 'unavailable', 'sick', 'other'] as const;
+
+export interface StaffMember {
+  id: Uuid;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  role_title: string | null;
+  employment_type: 'employee' | 'contractor';
+  admin_user_id: Uuid | null;
+  /** Secret for the personal calendar feed. Never sent to the browser except to its owner or a manager. */
+  calendar_token: string;
+  active: boolean;
+  created_at: Iso;
+  updated_at: Iso;
+}
+
+export interface WorkLocation {
+  id: Uuid;
+  name: string;
+  kind: (typeof LOCATION_KINDS)[number];
+  address: string | null;
+  access_notes: string | null;
+  colour: string;
+  client_id: Uuid | null;
+  active: boolean;
+  created_at: Iso;
+  updated_at: Iso;
+}
+
+export interface PlannerJob {
+  id: Uuid;
+  title: string;
+  job_type: JobType;
+  location_id: Uuid;
+  client_id: Uuid | null;
+  starts_at: Iso;
+  ends_at: Iso;
+  notes: string | null;
+  status: 'scheduled' | 'cancelled';
+  created_by: Uuid | null;
+  created_at: Iso;
+  updated_at: Iso;
+}
+
+export interface PlannerAssignment {
+  id: Uuid;
+  job_id: Uuid;
+  staff_id: Uuid;
+  covering_for_staff_id: Uuid | null;
+  cover_reason: string | null;
+  acknowledged_at: Iso | null;
+  created_at: Iso;
+  updated_at: Iso;
+}
+
+export interface PlannerWeek {
+  id: Uuid;
+  week_start: string; // YYYY-MM-DD, a Monday
+  published_at: Iso | null;
+  published_by: Uuid | null;
+  created_at: Iso;
+  updated_at: Iso;
+}
+
+export interface PlannerChange {
+  id: Uuid;
+  week_start: string;
+  staff_id: Uuid;
+  job_id: Uuid | null;
+  summary: string;
+  notified_at: Iso | null;
+  created_at: Iso;
+}
+
+export interface StaffLeave {
+  id: Uuid;
+  staff_id: Uuid;
+  start_date: string;
+  end_date: string;
+  reason: (typeof LEAVE_REASONS)[number];
+  created_at: Iso;
+}
+
+export interface StaffReminder {
+  id: Uuid;
+  staff_id: Uuid;
+  kind: 'week' | 'update' | 'day_before';
+  ref: string;
+  status: 'sent' | 'not_configured' | 'no_email' | 'failed';
+  created_at: Iso;
+}
+
+// ------------------------------------------------------------------ client billing (owner only)
+export const CLIENT_KINDS = ['club', 'school', 'association', 'corporate', 'individual', 'other'] as const;
+export const BILLING_MODELS = ['monthly_retainer', 'per_session', 'per_athlete', 'term_fee', 'fixed_project'] as const;
+export type BillingModel = (typeof BILLING_MODELS)[number];
+export const BILLING_MODEL_LABELS: Record<BillingModel, string> = {
+  monthly_retainer: 'Monthly retainer',
+  per_session: 'Per session',
+  per_athlete: 'Per athlete',
+  term_fee: 'Term fee',
+  fixed_project: 'Fixed project',
+};
+
+export interface Client {
+  id: Uuid;
+  name: string;
+  kind: (typeof CLIENT_KINDS)[number];
+  abn: string | null;
+  contact_name: string | null;
+  billing_email: string | null;
+  phone: string | null;
+  stripe_customer_id: string | null;
+  status: 'prospect' | 'active' | 'paused' | 'ended';
+  notes: string | null;
+  created_at: Iso;
+  updated_at: Iso;
+}
+
+export interface ClientAgreement {
+  id: Uuid;
+  client_id: Uuid;
+  title: string;
+  billing_model: BillingModel;
+  rate_cents: number;
+  agreed_value_cents: number | null;
+  start_date: string;
+  end_date: string | null;
+  payment_terms_days: number;
+  inclusions: string | null;
+  status: 'proposed' | 'active' | 'ended';
+  created_at: Iso;
+  updated_at: Iso;
+}
+
+export interface ClientInvoice {
+  id: Uuid;
+  client_id: Uuid;
+  agreement_id: Uuid | null;
+  number: string;
+  issued_on: string;
+  due_on: string;
+  amount_cents: number;
+  gst_cents: number;
+  amount_paid_cents: number;
+  paid_on: string | null;
+  method: 'stripe' | 'bank_transfer' | 'cash' | 'other' | null;
+  status: 'open' | 'paid' | 'void';
+  stripe_invoice_id: string | null;
+  hosted_invoice_url: string | null;
+  notes: string | null;
+  created_at: Iso;
+  updated_at: Iso;
+}
+
 export interface Tables {
   customers: Customer;
   conversations: Conversation;
@@ -383,5 +553,16 @@ export interface Tables {
   admin_users: AdminUser;
   practitioners: Practitioner;
   appointments: Appointment;
+  staff_members: StaffMember;
+  work_locations: WorkLocation;
+  planner_jobs: PlannerJob;
+  planner_assignments: PlannerAssignment;
+  planner_weeks: PlannerWeek;
+  planner_changes: PlannerChange;
+  staff_leave: StaffLeave;
+  staff_reminders: StaffReminder;
+  clients: Client;
+  client_agreements: ClientAgreement;
+  client_invoices: ClientInvoice;
 }
 export type TableName = keyof Tables;

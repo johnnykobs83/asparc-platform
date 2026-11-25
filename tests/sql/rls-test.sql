@@ -44,3 +44,33 @@ select case when count(*)>=1 then 'OK service role bypasses RLS' else 'FAIL' end
 reset role;
 -- updated_at trigger
 select case when updated_at >= created_at then 'OK updated_at trigger' else 'FAIL' end from services where slug='academy';
+
+-- Staff planner + client billing (migration 000007)
+insert into clients (name) values ('Test Club');
+insert into staff_members (full_name, calendar_token) values ('Test Coach', repeat('a', 40));
+insert into work_locations (name) values ('Test Ground');
+set role authenticated;
+-- staff: read the planner, but no client billing at all and no planning
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
+select case when count(*)=1 then 'OK staff reads the planner (staff_members)' else 'FAIL' end from staff_members;
+select case when count(*)=0 then 'OK staff sees 0 clients (owner only)' else 'FAIL' end from clients;
+do $$ begin
+  begin insert into planner_jobs (title, location_id, starts_at, ends_at) select 'Sneaky', id, now(), now() + interval '1 hour' from work_locations limit 1;
+    raise exception 'FAIL staff could add a job';
+  exception when insufficient_privilege then raise notice 'OK staff cannot add planner jobs'; end;
+  begin insert into clients (name) values ('Sneaky Club'); raise exception 'FAIL staff could add a client';
+  exception when insufficient_privilege then raise notice 'OK staff cannot add clients'; end;
+end $$;
+-- owner: sees and manages clients
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',false);
+select case when count(*)=1 then 'OK owner sees clients' else 'FAIL' end from clients;
+insert into planner_jobs (title, location_id, starts_at, ends_at) select 'Owner job', id, now(), now() + interval '1 hour' from work_locations limit 1;
+select case when count(*)=1 then 'OK owner adds planner jobs' else 'FAIL' end from planner_jobs;
+reset role;
+do $$ begin
+  begin insert into planner_jobs (title, location_id, starts_at, ends_at) select 'Backwards', id, now(), now() - interval '1 hour' from work_locations limit 1;
+    raise exception 'FAIL job time order';
+  exception when check_violation then raise notice 'OK job must end after it starts'; end;
+  begin insert into planner_weeks (week_start) values ('2026-12-01'); raise exception 'FAIL week must start on Monday';
+  exception when check_violation then raise notice 'OK planner weeks start on a Monday'; end;
+end $$;

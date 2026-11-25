@@ -38,6 +38,8 @@ export class SupabaseRepo implements Repo {
     }
     if (opts.since) q.append('created_at', `gte.${opts.since}`);
     if (opts.until) q.append('created_at', `lt.${opts.until}`);
+    if (opts.range?.gte) q.append(String(opts.range.column), `gte.${opts.range.gte}`);
+    if (opts.range?.lt) q.append(String(opts.range.column), `lt.${opts.range.lt}`);
     if (opts.orderBy) q.set('order', `${String(opts.orderBy)}.${opts.ascending ? 'asc' : 'desc'}.nullslast`);
     else q.set('order', 'created_at.desc');
     if (opts.limit) q.set('limit', String(opts.limit));
