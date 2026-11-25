@@ -85,13 +85,14 @@ export function WeekCalendar({
   practitioners: CalendarPractitioner[];
   onSelect: (a: CalendarAppointment) => void;
   onMove?: (a: CalendarAppointment, date: string, minutes: number) => void;
-  /** Staff add a booking: called with the day and start time clicked (or today when the button is used). */
-  onAdd?: (date: string, minutes: number) => void;
+  /** Staff add a booking: called with the day and start time clicked (or today when the button is used), and whose column was clicked. */
+  onAdd?: (date: string, minutes: number, practitionerId?: string) => void;
 }) {
   const today = melbourneLocal(new Date()).ymd;
   const [weekStart, setWeekStart] = useState(() => mondayOf(today));
   const [showCancelled, setShowCancelled] = useState(false);
-  const [only, setOnly] = useState<Set<string>>(new Set());
+  /** 'all', or one practitioner: their hours and bookings only. */
+  const [who, setWho] = useState<string>('all');
   const colours = useMemo(() => practitionerColours(practitioners), [practitioners]);
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const drag = useRef<{ a: CalendarAppointment; grabY: number; length: number } | null>(null);
@@ -101,18 +102,28 @@ export function WeekCalendar({
     () =>
       appointments
         .filter((a) => showCancelled || a.status !== 'cancelled')
-        .filter((a) => !only.size || only.has(a.practitioner_id))
+        .filter((a) => who === 'all' || a.practitioner_id === who)
         .map((a) => ({ a, s: melbourneLocal(a.starts_at), e: melbourneLocal(a.ends_at) }))
         .filter((x) => x.s.ymd >= days[0] && x.s.ymd <= days[6]),
-    [appointments, days, showCancelled, only],
+    [appointments, days, showCancelled, who],
   );
 
-  // Working hours of active practitioners, per weekday, for the shaded "open" background.
+  // The people shown: everyone active (plus anyone with bookings this week), or just the one picked.
+  // In "All" each person gets their own strip in every day, shaded in their colour where they work.
+  const people = useMemo(() => {
+    const booked = new Set(visible.map((x) => x.a.practitioner_id));
+    const all = [...practitioners].filter((p) => p.active || booked.has(p.id)).sort((a, b) => a.name.localeCompare(b.name));
+    return who === 'all' ? all : practitioners.filter((p) => p.id === who);
+  }, [practitioners, visible, who]);
+  const strip = (id: string) => Math.max(0, people.findIndex((p) => p.id === id));
+  const n = Math.max(people.length, 1);
+
+  // Working hours of the people shown, per weekday – used to size the calendar.
   const open = useMemo(() => {
     const byDay: Record<number, { start: number; end: number }[]> = {};
-    for (const p of practitioners.filter((x) => x.active)) for (const [k, w] of Object.entries(p.weekly_hours ?? {})) (byDay[Number(k)] ??= []).push(...w);
+    for (const p of people.filter((x) => x.active)) for (const [k, w] of Object.entries(p.weekly_hours ?? {})) (byDay[Number(k)] ??= []).push(...w);
     return byDay;
-  }, [practitioners]);
+  }, [people]);
 
   // Show from the earliest to the latest working hour or booking that week (at least 8am–6pm).
   const [from, to] = useMemo(() => {
@@ -160,48 +171,46 @@ export function WeekCalendar({
           <label className="mr-2 inline-flex items-center gap-1.5 text-xs text-muted">
             <input type="checkbox" className="accent-royal" checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} /> Show cancelled
           </label>
-          {onAdd && <Button size="sm" onClick={() => onAdd(today >= days[0] && today <= days[6] ? today : days[0], 600)}>+ Add booking</Button>}
+          {onAdd && <Button size="sm" onClick={() => onAdd(today >= days[0] && today <= days[6] ? today : days[0], 600, who === 'all' ? undefined : who)}>+ Add booking</Button>}
           <Button size="sm" variant="secondary" onClick={() => setWeekStart(addDays(weekStart, -7))}>← Previous</Button>
           <Button size="sm" variant="secondary" disabled={weekStart === mondayOf(today)} onClick={() => setWeekStart(mondayOf(today))}>This week</Button>
           <Button size="sm" variant="secondary" onClick={() => setWeekStart(addDays(weekStart, 7))}>Next →</Button>
         </div>
       </div>
 
-      {practitioners.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-4 py-2" aria-label="Practitioners">
+      {practitioners.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-4 py-2" role="radiogroup" aria-label="Practitioners">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={who === 'all'}
+            onClick={() => setWho('all')}
+            className={`rounded-full border px-3 py-1 text-xs font-semibold ${who === 'all' ? 'border-charcoal bg-charcoal text-white' : 'border-line bg-white hover:border-charcoal'}`}
+          >
+            All
+          </button>
           {[...practitioners]
             .filter((p) => p.active || appointments.some((a) => a.practitioner_id === p.id))
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((p) => {
               const c = colours.get(p.id) ?? '#14519C';
-              const on = !only.size || only.has(p.id);
+              const picked = who === p.id;
               return (
                 <button
                   key={p.id}
                   type="button"
-                  aria-pressed={only.has(p.id)}
-                  title={only.has(p.id) ? `Showing ${p.name} – click to show everyone` : `Show only ${p.name}'s bookings (click more names to add them)`}
-                  onClick={() =>
-                    setOnly((cur) => {
-                      const n = new Set(cur);
-                      if (n.has(p.id)) n.delete(p.id);
-                      else n.add(p.id);
-                      return n;
-                    })
-                  }
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${on ? '' : 'opacity-40'}`}
-                  style={{ borderColor: c, background: shade(c, only.has(p.id) ? '38' : '14') }}
+                  role="radio"
+                  aria-checked={picked}
+                  title={picked ? `Showing only ${p.name}` : `Show only ${p.name}'s hours and bookings`}
+                  onClick={() => setWho(picked ? 'all' : p.id)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border-2 px-2.5 py-1 text-xs font-medium transition ${who !== 'all' && !picked ? 'opacity-50 hover:opacity-100' : ''}`}
+                  style={{ borderColor: picked ? c : shade(c, '66'), background: shade(c, picked ? '4d' : '1f') }}
                 >
                   <span className="h-2.5 w-2.5 rounded-full" style={{ background: c }} aria-hidden="true" />
                   {p.name}
                 </button>
               );
             })}
-          {only.size > 0 && (
-            <button type="button" className="ml-1 text-xs text-royal underline" onClick={() => setOnly(new Set())}>
-              Show everyone
-            </button>
-          )}
         </div>
       )}
 
@@ -223,8 +232,7 @@ export function WeekCalendar({
           </div>
           {days.map((d) => {
             const dayItems = visible.filter((x) => x.s.ymd === d).sort((p, q) => p.s.minutes - q.s.minutes);
-            // People booked at the same time sit side by side, one lane per practitioner.
-            const lanes = [...new Set(dayItems.map((x) => x.a.practitioner_id))];
+            // Each person's bookings sit in their own strip, lined up with their shaded hours.
             return (
               <div
                 key={d}
@@ -232,8 +240,10 @@ export function WeekCalendar({
                 onClick={(e) => {
                   // A click on empty space starts a new booking at that time (rounded to the half hour).
                   if (!onAdd || (e.target as HTMLElement).closest('button')) return;
-                  const raw = from + ((e.clientY - e.currentTarget.getBoundingClientRect().top) / ROW) * 30;
-                  onAdd(d, Math.max(from, Math.min(to - 30, Math.floor(raw / 30) * 30)));
+                  const box = e.currentTarget.getBoundingClientRect();
+                  const raw = from + ((e.clientY - box.top) / ROW) * 30;
+                  const person = people[Math.min(n - 1, Math.max(0, Math.floor(((e.clientX - box.left) / box.width) * n)))];
+                  onAdd(d, Math.max(from, Math.min(to - 30, Math.floor(raw / 30) * 30)), person?.id);
                 }}
                 className={`relative border-l border-line bg-mist/60 ${onAdd ? 'cursor-cell' : ''}`}
                 style={{ height }}
@@ -255,9 +265,26 @@ export function WeekCalendar({
                   if (was.ymd !== d || was.minutes !== m) onMove(dragged.a, d, m);
                 }}
               >
-                {(open[asDate(d).getUTCDay()] ?? []).map((w, i) => (
-                  <div key={i} className="absolute inset-x-0 bg-white" style={{ top: y(Math.max(w.start, from)), height: y(Math.min(w.end, to)) - y(Math.max(w.start, from)) }} />
-                ))}
+                {people.map((p, k) =>
+                  (p.active ? (p.weekly_hours?.[String(asDate(d).getUTCDay())] ?? []) : []).map((w, i) => {
+                    const c = colours.get(p.id) ?? '#14519C';
+                    return (
+                      <div
+                        key={`${p.id}-${i}`}
+                        className="absolute"
+                        title={`${p.name}: ${clockLabel(w.start)} – ${clockLabel(w.end)}`}
+                        style={{
+                          top: y(Math.max(w.start, from)),
+                          height: y(Math.min(w.end, to)) - y(Math.max(w.start, from)),
+                          left: `${(k * 100) / n}%`,
+                          width: `${100 / n}%`,
+                          background: `linear-gradient(${shade(c, '1f')}, ${shade(c, '1f')}), #fff`,
+                          borderLeft: k > 0 ? `1px dashed ${shade(c, '55')}` : undefined,
+                        }}
+                      />
+                    );
+                  }),
+                )}
                 {hours.map((h) => (
                   <div key={h} className="absolute inset-x-0 border-t border-line/70" style={{ top: y(h) }} />
                 ))}
@@ -268,8 +295,8 @@ export function WeekCalendar({
                 )}
                 {dayItems.map(({ a, s, e }) => {
                   const end = e.ymd === s.ymd ? e.minutes : 1440;
-                  const lane = lanes.indexOf(a.practitioner_id);
-                  const width = 100 / lanes.length;
+                  const lane = strip(a.practitioner_id);
+                  const width = 100 / n;
                   const movable = Boolean(onMove) && a.status === 'confirmed';
                   const price = money(a.charge_cents);
                   const discounted = a.final_price_cents != null && a.list_price_cents != null && a.final_price_cents !== a.list_price_cents;
@@ -310,7 +337,7 @@ export function WeekCalendar({
         </div>
       </div>
       <p className="border-t border-line px-4 py-2 text-xs text-muted">
-        Each practitioner has their own colour – click a name above to show only theirs. A strong shade is booked, a pale shade is completed, dashed is a no-show. White areas are bookable hours; grey is closed. {onAdd ? 'Click an empty time to add a booking. ' : ''}{onMove ? 'Drag a confirmed booking to another day or time to move it. ' : ''}Click a booking for the customer&apos;s details, price and other changes. * marks an adjusted price.
+        Each practitioner has their own colour. In <strong>All</strong>, every day has a strip per person, shaded where they work; click a name to see only their hours and bookings. A strong shade is booked, a pale shade is completed, dashed is a no-show; grey is closed. {onAdd ? 'Click an empty time to add a booking. ' : ''}{onMove ? 'Drag a confirmed booking to another day or time to move it. ' : ''}Click a booking for the customer&apos;s details, price and other changes. * marks an adjusted price.
       </p>
     </div>
   );

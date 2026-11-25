@@ -187,8 +187,8 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
   const activePractitioners = (practitioners.data?.practitioners ?? []).filter((x) => x.active);
   const allServices = services.data?.services ?? [];
 
-  function startAdd(date: string, minutes: number) {
-    const first = activePractitioners[0];
+  function startAdd(date: string, minutes: number, practitionerId?: string) {
+    const first = activePractitioners.find((x) => x.id === practitionerId) ?? activePractitioners[0];
     if (!first) {
       toast('Add a practitioner first.', 'err');
       return;
