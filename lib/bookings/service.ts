@@ -95,6 +95,8 @@ export async function listActivePractitioners(): Promise<Practitioner[]> {
 
 export interface BookableService {
   id: string;
+  /** Used in shareable links: /book?service=<slug> */
+  slug: string;
   name: string;
   summary: string;
   duration_minutes: number;
@@ -110,6 +112,7 @@ export async function listBookableServices(): Promise<BookableService[]> {
   return services
     .map((s) => ({
       id: s.id,
+      slug: s.slug,
       name: s.name,
       summary: s.summary,
       duration_minutes: s.duration_minutes as number,

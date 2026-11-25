@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface BookableService {
   id: string;
+  slug?: string;
   name: string;
   summary: string;
   duration_minutes: number;
@@ -70,7 +71,7 @@ export function BookingFlow() {
         const list = d.services ?? [];
         setServices(list);
         const wanted = new URLSearchParams(window.location.search).get('service');
-        const match = list.find((s) => s.id === wanted || s.name === wanted);
+        const match = list.find((s) => s.slug === wanted || s.id === wanted || s.name === wanted);
         if (match) setServiceId(match.id);
         else if (list.length === 1) setServiceId(list[0].id);
       })

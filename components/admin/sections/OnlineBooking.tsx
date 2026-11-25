@@ -21,6 +21,7 @@ interface PractitionerRow {
 }
 interface ServiceRow {
   id: string;
+  slug?: string;
   name: string;
   category: string;
   duration_minutes: number | null;
@@ -312,6 +313,13 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
           <><strong>Online booking is not live yet.</strong> Add at least one active practitioner with working hours and a service. A service can be booked online once it has a duration (set in Pricing &amp; Services) and is marked available.</>
         )}
       </Notice>
+
+      {live && (
+        <BookingLinks
+          services={bookable.filter((s) => s.availability === 'available' && s.is_public && list.some((p) => p.active && Object.keys(p.weekly_hours ?? {}).length && p.service_ids.includes(s.id)))}
+          toast={toast}
+        />
+      )}
 
       {appointments.error && <ErrorNote message={appointments.error} />}
       <div className="flex items-center gap-2" role="group" aria-label="Bookings view">
@@ -670,5 +678,70 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
         )}
       </Drawer>
     </div>
+  );
+}
+
+/**
+ * Links to send customers so they can book themselves: the booking page, or the booking
+ * page with one service already chosen (/book?service=<slug>).
+ */
+function BookingLinks({ services, toast }: { services: ServiceRow[]; toast: (t: string, tone?: 'ok' | 'err') => void }) {
+  const [open, setOpen] = useState(false);
+  const [pick, setPick] = useState('');
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.asparc.com.au';
+  const chosen = services.find((x) => x.id === pick);
+  const url = chosen?.slug ? `${origin}/book?service=${chosen.slug}` : `${origin}/book`;
+  const what = chosen ? chosen.name : 'a session';
+  const message = `Hi! You can book ${what} with ASPARC online here – pick a time that suits and you're confirmed straight away: ${url}`;
+  async function copy(text: string, done: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(done);
+    } catch {
+      toast('Copy failed – select the link and copy it', 'err');
+    }
+  }
+  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  const pill = 'inline-flex items-center rounded-md border border-line bg-white px-3 py-1.5 text-sm font-medium hover:border-royal hover:text-royal';
+  return (
+    <Panel
+      title="Send customers a booking link"
+      actions={<Button size="sm" variant={open ? 'secondary' : 'primary'} onClick={() => setOpen((v) => !v)}>{open ? 'Hide' : 'Get a link'}</Button>}
+    >
+      {!open ? (
+        <p className="text-sm text-muted">
+          Customers book themselves at <a className="text-royal underline" href="/book" target="_blank" rel="noreferrer">{origin.replace(/^https?:\/\//, '')}/book</a>. Get a link to text, email or post – for any service or one in particular.
+        </p>
+      ) : (
+        <div className="space-y-3 text-sm">
+          <label className="block">
+            <span className="font-medium">Service</span>
+            <select className="mt-1 block w-full rounded-md border border-line px-3 py-2 sm:w-96" value={pick} onChange={(e) => setPick(e.target.value)}>
+              <option value="">Any service – customer chooses</option>
+              {services.map((x) => (
+                <option key={x.id} value={x.id}>{x.name}</option>
+              ))}
+            </select>
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <code className="min-w-0 flex-1 break-all rounded bg-mist px-2 py-1.5 text-xs">{url}</code>
+            <Button size="sm" onClick={() => copy(url, 'Booking link copied')}>Copy link</Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {canShare && (
+              <Button size="sm" variant="secondary" onClick={() => navigator.share({ title: 'Book with ASPARC', text: message.replace(` ${url}`, ''), url }).catch(() => undefined)}>
+                Share…
+              </Button>
+            )}
+            <a className={pill} href={`sms:?&body=${encodeURIComponent(message)}`}>Text message</a>
+            <a className={pill} href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+            <a className={pill} href={`mailto:?subject=${encodeURIComponent('Book your ASPARC session online')}&body=${encodeURIComponent(message)}`}>Email</a>
+            <Button size="sm" variant="ghost" onClick={() => copy(message, 'Message copied')}>Copy message</Button>
+            <a className={pill} href={url} target="_blank" rel="noreferrer">Open booking page ↗</a>
+          </div>
+          <p className="text-xs text-muted">The link always shows your live times and prices. Bookings made through it are confirmed straight away and the customer gets their pre-visit form if it&apos;s their first visit.</p>
+        </div>
+      )}
+    </Panel>
   );
 }
