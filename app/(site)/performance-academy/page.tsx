@@ -3,7 +3,10 @@ import { AcademyView } from '@/components/site/views/ServicePages';
 import { getCachedPublicSiteData } from '@/lib/kb/cached';
 
 export const revalidate = 60;
-export const metadata: Metadata = { title: 'Performance Academy', description: 'A 10-week athletic development program for junior athletes aged 8–18 in Melbourne.' };
+export const metadata: Metadata = {
+  title: 'Football Performance Academy',
+  description: 'ASPARC Football Performance Academy – speed, strength, agility and athletic development for footballers aged 8–16 at Avenger Park, Melbourne. Now enrolling for Term 1 2027.',
+};
 
 export default async function Page() {
   return <AcademyView site={await getCachedPublicSiteData()} />;

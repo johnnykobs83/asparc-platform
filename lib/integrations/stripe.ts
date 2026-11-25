@@ -134,16 +134,36 @@ async function onCheckoutSession(type: string, session: Record<string, unknown>,
     paid_at: status === 'succeeded' ? new Date((eventCreated ?? Date.now() / 1000) * 1000).toISOString() : null,
   });
 
+  // Academy enrolments pass their id as the Payment Link's client_reference_id: paying confirms the place.
+  const academy = status === 'succeeded' ? await confirmAcademyPlace(str(session.client_reference_id), ref, payment.paid_at) : null;
+  if (academy && !payment.customer_id) await db().update('payments', payment.id, { customer_id: academy.customer_id });
+
   // Notify once, when a payment first becomes successful. Staff still confirm the booking/registration.
   if (status === 'succeeded' && previous?.status !== 'succeeded') {
     await notify({
       type: 'payment_confirmation',
       title: `Payment received: ${money(payment.amount_cents, payment.currency)}${service.name ? ` – ${service.name}` : ''}`,
-      body: `Stripe reports a successful payment${customer ? ` from ${customer.full_name}` : email ? ` from ${email}` : ''}${extra ? ` (${extra})` : ''}. This does not confirm a booking or registration – please confirm it with the customer.`,
-      linkPath: '/admin/revenue',
+      body: academy
+        ? `Academy place confirmed for ${academy.athlete_name} – paid by ${customer?.full_name ?? email ?? 'the parent'} through Stripe.`
+        : `Stripe reports a successful payment${customer ? ` from ${customer.full_name}` : email ? ` from ${email}` : ''}${extra ? ` (${extra})` : ''}. This does not confirm a booking or registration – please confirm it with the customer.`,
+      linkPath: academy ? '/admin/academy' : '/admin/revenue',
     });
   }
   return `payment ${status}`;
+}
+
+/** Marks an Academy enrolment paid and confirmed when its Payment Link payment succeeds. Safe to repeat. */
+async function confirmAcademyPlace(reference: string | null, paymentRef: string, paidAt: string | null) {
+  if (!reference || !/^[0-9a-f-]{36}$/i.test(reference)) return null;
+  const e = await db().get('academy_enrolments', reference).catch(() => null);
+  if (!e) return null;
+  if (e.paid_at) return e;
+  return db().update('academy_enrolments', e.id, {
+    paid_at: paidAt ?? new Date().toISOString(),
+    payment_ref: paymentRef.slice(0, 200),
+    // A waitlisted or cancelled enrolment stays as it is: staff sort those out (and refund if needed).
+    status: e.status === 'awaiting_payment' ? 'confirmed' : e.status,
+  });
 }
 
 async function onChargeRefunded(charge: Record<string, unknown>) {

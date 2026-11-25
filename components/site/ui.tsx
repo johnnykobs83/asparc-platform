@@ -223,6 +223,25 @@ export function FeaturedOffer({ s, id, headingLevel = 'h2', showMore = true }: {
   );
 }
 
+/** What the site-wide bar says about a special (used inside AnnouncementBar). */
+export function SpecialBannerContent({ s }: { s: Service }) {
+  const special = isOnSpecial(s);
+  return (
+    <>
+      <span className="font-display font-bold uppercase tracking-[0.16em] text-sky-100">{s.offer_label || 'Special'}</span>
+      <span className="hidden h-1 w-1 rotate-45 bg-sky sm:inline-block" aria-hidden="true" />
+      <span className="font-semibold">{s.name}</span>
+      {priceText(s) && (
+        <span>
+          {priceText(s)}
+          {special && <> <s className="text-white/60">{dollars(s.standard_price_cents!)}</s></>}
+        </span>
+      )}
+      <span className="font-display font-semibold uppercase tracking-wider underline-offset-4 group-hover:underline">Find out more →</span>
+    </>
+  );
+}
+
 /** Thin site-wide announcement shown above the header on every page. */
 export function SpecialBanner({ s }: { s: Service }) {
   const special = isOnSpecial(s);

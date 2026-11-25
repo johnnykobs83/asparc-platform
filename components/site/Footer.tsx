@@ -38,7 +38,7 @@ export function Footer({ site }: { site: PublicSiteData }) {
           <ul className="space-y-2.5 text-sm text-white/75">
             <li><Link href="/about" className="hover:text-white">About</Link></li>
             <li><Link href="/contact" className="hover:text-white">Contact</Link></li>
-            <li><Link href="/performance-academy#register" className="hover:text-white">Academy registration</Link></li>
+            <li><Link href="/performance-academy#enrol" className="hover:text-white">Academy enrolment</Link></li>
             <li><Link href="/contact?form=club" className="hover:text-white">Club partnerships</Link></li>
           </ul>
         </div>

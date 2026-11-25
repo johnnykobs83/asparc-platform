@@ -395,6 +395,44 @@ export const JOB_TYPE_LABELS: Record<JobType, string> = {
 export const LOCATION_KINDS = ['asparc', 'club', 'school', 'client_site', 'other'] as const;
 export const LEAVE_REASONS = ['leave', 'unavailable', 'sick', 'other'] as const;
 
+export interface AcademySession {
+  id: Uuid;
+  group_key: 'foundation' | 'athletic' | 'performance';
+  /** 1 = Monday … 7 = Sunday */
+  weekday: number;
+  start_minutes: number;
+  end_minutes: number;
+  capacity: number;
+  location: string;
+  active: boolean;
+  created_at: Iso;
+  updated_at: Iso;
+}
+
+export interface AcademyEnrolment {
+  id: Uuid;
+  customer_id: Uuid;
+  athlete_name: string;
+  athlete_dob: string;
+  group_key: AcademySession['group_key'];
+  package: 'term_1x' | 'term_2x' | 'annual' | 'casual';
+  session_ids: Uuid[];
+  casual_date: string | null;
+  term_label: string;
+  status: 'awaiting_payment' | 'confirmed' | 'waitlist' | 'cancelled';
+  price_cents: number | null;
+  paid_at: Iso | null;
+  payment_ref: string | null;
+  club: string | null;
+  parent_note: string | null;
+  staff_note: string | null;
+  guardian_consent: boolean;
+  consent_marketing: boolean;
+  source: string;
+  created_at: Iso;
+  updated_at: Iso;
+}
+
 export interface ClientNote {
   id: Uuid;
   customer_id: Uuid;
@@ -596,6 +634,8 @@ export interface ClientInvoice {
 
 export interface Tables {
   customers: Customer;
+  academy_sessions: AcademySession;
+  academy_enrolments: AcademyEnrolment;
   client_notes: ClientNote;
   intake_forms: IntakeForm;
   conversations: Conversation;

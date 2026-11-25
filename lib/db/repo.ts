@@ -140,6 +140,8 @@ export const DEFAULTS: { [K in TableName]?: Partial<Tables[K]> } = {
   admin_users: { full_name: null, role: 'staff', active: true, password_hash: null, last_login_at: null },
   practitioners: { title: null, service_ids: [], weekly_hours: {}, buffer_minutes: 0, active: true, staff_member_id: null, colour: null },
   client_notes: { author_id: null, author_name: null },
+  academy_sessions: { capacity: 12, location: 'Avenger Park', active: true },
+  academy_enrolments: { session_ids: [], casual_date: null, term_label: 'Term 1 2027', status: 'awaiting_payment', price_cents: null, paid_at: null, payment_ref: null, club: null, parent_note: null, staff_note: null, consent_marketing: false, source: 'website' },
   intake_forms: {
     status: 'sent', sent_by: null, sent_to: null, reason: 'manual', submitted_at: null, for_whom: null, athlete_name: null, athlete_dob: null,
     details: {}, screening: {}, health: {}, screening_flags: 0, review_status: 'not_needed', reviewed_by: null, reviewed_at: null, review_note: null,
@@ -179,4 +181,6 @@ export const HAS_UPDATED_AT: ReadonlySet<TableName> = new Set<TableName>([
   'client_agreements',
   'client_invoices',
   'intake_forms',
+  'academy_sessions',
+  'academy_enrolments',
 ]);

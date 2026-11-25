@@ -34,6 +34,8 @@ export class HttpError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Per-field messages for forms, sent as `fields` like a validation error. */
+    public fields?: Record<string, string>,
   ) {
     super(message);
   }
@@ -80,7 +82,7 @@ export function handler<A extends unknown[]>(fn: (req: Request, ...args: A) => P
     try {
       return await fn(req, ...args);
     } catch (e) {
-      if (e instanceof HttpError) return error(e.message, e.status);
+      if (e instanceof HttpError) return error(e.message, e.status, e.fields ? { fields: e.fields } : {});
       if (e instanceof ZodError) return zodErrorResponse(e);
       console.error('[api]', req.method, new URL(req.url).pathname, e);
       return error(env.isProduction ? 'Something went wrong. Please try again.' : String(e), 500);

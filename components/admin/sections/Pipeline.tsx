@@ -531,7 +531,7 @@ export function AcademySection({ can }: { can: Can }) {
   return (
     <>
       {toastNode}
-      <PageHeader title="Academy Registrations" description="Parent/guardian registrations of interest for the Performance Academy." />
+      <PageHeader title="Registrations of interest" description="Earlier interest forms from parents and guardians (before online enrolment). New families enrol above." />
       {error && <ErrorNote message={error} />}
       {loading && !data && <Loading />}
       {data && (

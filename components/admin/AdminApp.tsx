@@ -12,6 +12,7 @@ import { AcademySection, BookingsSection, ConversationsSection, LeadsSection } f
 import { KnowledgeSection, PricingSection } from './sections/Content';
 import { MyWeekSection, PlannerSection } from './sections/Planner';
 import { BillingSection } from './sections/Billing';
+import { FootballAcademySection } from './sections/FootballAcademy';
 import { ClientsSection } from './sections/Clients';
 import { IntegrationsSection, NotificationsSection, ReportsSection, RevenueSection, SettingsSection } from './sections/System';
 
@@ -42,7 +43,7 @@ export function AdminApp({ section }: { section: string }) {
       case 'conversations': return <ConversationsSection can={can} />;
       case 'leads': return <LeadsSection can={can} />;
       case 'bookings': return <BookingsSection can={can} />;
-      case 'academy': return <AcademySection can={can} />;
+      case 'academy': return (<><FootballAcademySection can={can} /><AcademySection can={can} /></>);
       case 'revenue': return can('revenue:view') ? <RevenueSection /> : <NoAccess />;
       case 'knowledge-base': return <KnowledgeSection can={can} />;
       case 'pricing': return <PricingSection can={can} />;

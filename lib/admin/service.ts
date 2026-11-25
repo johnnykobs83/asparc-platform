@@ -145,8 +145,9 @@ export async function deleteCustomerData(customerId: string) {
       forms++;
     }
     for (const n of await repo.list('client_notes', { eq: { customer_id: customerId }, limit: 5000 })) await repo.remove('client_notes', n.id);
+    for (const e of await repo.list('academy_enrolments', { eq: { customer_id: customerId }, limit: 1000 })) await repo.remove('academy_enrolments', e.id);
   } catch (e) {
-    if (!/intake_forms|client_notes|does not exist|PGRST205/i.test(String(e))) throw e;
+    if (!/intake_forms|client_notes|academy_enrolments|does not exist|PGRST205/i.test(String(e))) throw e;
   }
   await repo.remove('customers', customerId);
   return { leads: leads.length, conversations: convos.length, appointments: appointments.length, forms };

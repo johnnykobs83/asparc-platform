@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { IMAGES } from '@/lib/brand';
 import type { Service } from '@/lib/db/types';
 import type { PublicSiteData } from '@/lib/kb/service';
+import { ACADEMY, ACADEMY_GROUPS } from '@/lib/academy/config';
+import { AcademyEnrol } from '../AcademyEnrol';
 import { EnquiryForm } from '../EnquiryForm';
 import { Check, CtaBand, DraftBadge, FeaturedOffer, ImageSlot, OfferPrice, PageHero, PendingBadge, Section, SectionHeading, ServiceStatus, SpecialBadge, cx, enquireHref, featuredServices, isOnSpecial, priceText } from '../ui';
 
@@ -104,100 +106,68 @@ export function SportsPerformanceView({ site }: { site: PublicSiteData }) {
 
 /* ---------------------------------------------------------------- */
 // Age-group names, aims and training focus are taken from ASPARC's own program flyers.
-const AGE_DETAILS = [
-  {
-    age: '8–10',
-    title: 'Foundation Movers',
-    text: 'Build movement confidence and a lifelong love of physical activity.',
-    focus: ['Running mechanics', 'Balance and coordination', 'Jumping and landing', 'Sprint technique and agility', 'Core control and confidence', 'Fun, active competition'],
-    image: '/images/academy-8-10.jpg',
-    position: 'object-[50%_30%]',
-  },
-  {
-    age: '11–13',
-    title: 'Athletic Development',
-    text: 'Build strong movement and strength foundations through the growth years.',
-    focus: ['Sprint technique', 'Change of direction', 'Controlled deceleration', 'Basic strength and mobility', 'Landing control and core strength', 'Injury prevention foundations'],
-    image: '/images/academy-11-13.jpg',
-    position: 'object-[70%_45%]',
-  },
-  {
-    age: '14–16',
-    title: 'Performance Development',
-    text: 'Build the strength, speed and power required for higher-level football.',
-    focus: ['Acceleration and sprint speed', 'Strength and relative strength', 'Explosive power', 'Change of direction', 'Football conditioning', 'Resilience and injury prevention'],
-    image: '/images/academy-14-16.jpg',
-    position: 'object-[50%_40%]',
-  },
-  {
-    age: '16–18',
-    title: 'Elite Football Performance',
-    text: 'Prepare for the physical demands of senior football and academy pathways.',
-    focus: ['Maximum strength and power', 'Sprint speed', 'Repeat-sprint ability', 'Football conditioning and recovery', 'Performance monitoring and testing', 'Resilience and injury prevention'],
-    image: '/images/academy-16-18.jpg',
-    position: 'object-[60%_25%]',
-  },
-] as const;
-
 export function AcademyView({ site }: { site: PublicSiteData }) {
   const program = site.services.find((s) => s.category === 'academy');
   return (
     <>
-      <PageHero eyebrow="Performance Academy" title={<>Building better <span className="text-sky">young athletes.</span></>} intro="A 10-week athletic development program for junior athletes aged 8–18, focused on strength, speed, agility, coordination, power and long-term athletic development." image={IMAGES.academy}>
-        <Link href="#register" className="btn-primary">Register interest</Link>
+      <PageHero
+        eyebrow={`Now enrolling · ${ACADEMY.term}`}
+        title={<>ASPARC Football <span className="text-sky">Performance Academy</span></>}
+        intro={`Speed, strength, agility and athletic development for young footballers aged 8–16. Small groups of ${ACADEMY.capacity}, six days a week at ${ACADEMY.venue}.`}
+        image={IMAGES.academy}
+      >
+        <Link href="#enrol" className="btn-primary">Enrol now</Link>
+        <Link href="#timetable" className="btn-outline">See the timetable</Link>
       </PageHero>
       <Section>
         <div className="grid gap-12 lg:grid-cols-12">
           <div className="lg:col-span-7">
-            <SectionHeading eyebrow="The program" title="10 weeks. One session a week." intro="Each Academy block is designed to develop well-rounded athletes – not just better players in one sport. Training is grouped by age so every session is appropriate for the athlete’s stage of development." />
+            <SectionHeading eyebrow="The Academy" title="Develop the athlete, not just the player." intro="Each group trains to an age-appropriate plan so young footballers build speed, strength and movement skills safely – and enjoy it. Choose the group for your child’s age, the days that suit your family, and how often they train." />
             <ul className="grid gap-3 text-[15px] sm:grid-cols-2">
-              <Check>10-week training block</Check>
-              <Check>Runs during school terms</Check>
-              <Check>One session per week</Check>
-              <Check>45–60 minutes per session</Check>
-              <Check>Four age groups: 8–10, 11–13, 14–16, 16–18</Check>
+              <Check>Three age groups: 8–11, 11–13 and 14–16</Check>
+              <Check>50-minute sessions, Monday to Saturday</Check>
+              <Check>No more than {ACADEMY.capacity} athletes per session</Check>
+              <Check>1 or 2 sessions a week, annual or casual</Check>
               <Check>Strength, speed, agility, coordination &amp; power</Check>
-              <Check>Parent/guardian registration and communication</Check>
+              <Check>Coached by ASPARC’s high-performance team</Check>
             </ul>
           </div>
           {program && (
             <aside className="lg:col-span-5">
               <div className="rounded-2xl bg-charcoal p-8 text-white">
-                <p className="eyebrow">Program fee</p>
-                <p className="mt-3 font-display text-6xl font-extrabold">{priceText(program) ?? 'On enquiry'}</p>
-                <p className="text-white/60">{program.price_unit}</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {program.price_status === 'draft' && <DraftBadge />}
-                  {program.availability === 'pending_confirmation' && <PendingBadge>Program dates being confirmed</PendingBadge>}
+                <p className="eyebrow">10-week term from</p>
+                <div className="mt-3">
+                  <OfferPrice s={program} dark />
                 </div>
-                <p className="mt-6 text-sm leading-relaxed text-white/70">Registering interest does not commit you to payment. The team will contact you with confirmed dates, location and payment details.</p>
-                <Link href="#register" className="btn-primary mt-6 w-full">Register interest</Link>
+                {program.price_status === 'draft' && <DraftBadge className="mt-4" />}
+                <p className="mt-6 text-sm leading-relaxed text-white/70">2 sessions a week, annual and casual options below. Places are held as soon as you enrol.</p>
+                <Link href="#enrol" className="btn-primary mt-6 w-full">Enrol now</Link>
               </div>
             </aside>
           )}
         </div>
       </Section>
       <Section tone="mist">
-        <SectionHeading eyebrow="Age groups" title="The right training at the right stage" />
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {AGE_DETAILS.map((g) => (
-            <article key={g.age} className="card flex flex-col overflow-hidden">
-              <div className="relative aspect-[4/5] bg-charcoal">
+        <SectionHeading eyebrow="Age groups" title="The right training at the right stage" intro="11-year-olds can join Foundation Movers or Athletic Development – choose whichever suits your child best." />
+        <div className="grid gap-5 md:grid-cols-3">
+          {ACADEMY_GROUPS.map((g) => (
+            <article key={g.key} className="card flex flex-col overflow-hidden border-t-[6px]" style={{ borderTopColor: g.colour }}>
+              <div className="relative aspect-[4/3] bg-charcoal">
                 {/* Decorative: the heading below names the age group. */}
                 <img src={g.image} alt="" loading="lazy" width={800} height={1000} className={`absolute inset-0 h-full w-full object-cover ${g.position}`} />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-charcoal via-charcoal/70 to-transparent px-6 pb-5 pt-16 text-white">
-                  <p className="font-display text-5xl font-extrabold leading-none">{g.age}</p>
+                  <p className="font-display text-5xl font-extrabold leading-none">{g.ages}</p>
                   <p className="mt-1 text-xs uppercase tracking-widest text-white/75">years</p>
                 </div>
               </div>
               <div className="flex-1 p-6">
-                <h3 className="text-xl uppercase">{g.title}</h3>
+                <h3 className="text-xl uppercase">{g.name}</h3>
                 <p className="mt-2 text-[15px] leading-relaxed text-muted">{g.text}</p>
                 <p className="eyebrow mt-5">Training focus</p>
                 <ul className="mt-2 space-y-1.5 text-sm text-charcoal">
                   {g.focus.map((item) => (
                     <li key={item} className="flex gap-2">
-                      <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-royal" aria-hidden="true" />
+                      <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: g.colour }} aria-hidden="true" />
                       {item}
                     </li>
                   ))}
@@ -207,21 +177,7 @@ export function AcademyView({ site }: { site: PublicSiteData }) {
           ))}
         </div>
       </Section>
-      <Section id="register" className="scroll-mt-20">
-        <div className="grid gap-12 lg:grid-cols-12">
-          <div className="lg:col-span-4">
-            <SectionHeading eyebrow="For parents & guardians" title="Register your interest" intro="Complete the form and the ASPARC team will contact you with program dates and next steps." />
-            <ul className="space-y-3 text-[15px] text-muted">
-              <Check>Registrations are completed by a parent or guardian</Check>
-              <Check>We only use your details to respond to your registration</Check>
-              <Check>No payment is taken online at this stage</Check>
-            </ul>
-          </div>
-          <div className="card p-6 sm:p-8 lg:col-span-8">
-            <EnquiryForm form="academy" leadType="academy" serviceInterest={program?.name} />
-          </div>
-        </div>
-      </Section>
+      <AcademyEnrol />
     </>
   );
 }
