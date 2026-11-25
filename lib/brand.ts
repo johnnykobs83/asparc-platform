@@ -35,6 +35,15 @@ export const BRAND = {
   assistantTitle: 'ASPARC AI – Your Performance Assistant',
 } as const;
 
+/**
+ * GST. ASPARC is not yet registered for GST (Johnny, 26 Nov 2026), so the site must not say
+ * prices include GST. Once the ATO registration is through, set this to true (and add the
+ * Australia registration in Stripe → Settings → Tax) and "incl. GST" shows again.
+ */
+export const GST_REGISTERED = false;
+/** " incl. GST" when registered, otherwise nothing – for use straight after a price. */
+export const gstSuffix = (prefix = ' ') => (GST_REGISTERED ? `${prefix}incl. GST` : '');
+
 /** Photography slots. Drop files with these names into /public/images/. See /public/images/README.md */
 export const IMAGES = {
   hero: '/images/hero.jpg',

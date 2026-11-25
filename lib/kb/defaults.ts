@@ -41,13 +41,13 @@ export const DEFAULT_SERVICES: SeedService[] = [
     summary:
       'A 6-week program built around you as an individual athlete: one 1-on-1 training session a week with one of our coaches (6 sessions in total), plus a detailed weekly program to follow between sessions.',
     price_cents: 77000,
-    price_unit: 'for the 6-week program (incl. GST)',
+    price_unit: 'for the 6-week program',
     price_status: 'approved',
     bookable: false,
     sort_order: 5,
     standard_price_cents: 99000,
     offer_label: 'Introductory offer',
-    offer_terms: 'Introductory price for the first 10 athletes. Standard price $990 incl. GST.',
+    offer_terms: 'Introductory price for the first 10 athletes. Standard price $990.',
     is_featured: true,
   }),
   // Sports performance

@@ -7,6 +7,7 @@ import { notify } from '../notifications/service';
 import { addDays, melbourneDate } from '../time/melbourne';
 import { sendIntakeIfDue } from '../clients/intake';
 import { listServices } from '../kb/service';
+import { GST_REGISTERED } from '../brand';
 import { ACADEMY, ACADEMY_PACKAGES, DEFAULT_TIMETABLE, ageOn, groupOf, packageOf, slotText, type AcademyPackageKey } from './config';
 
 /**
@@ -230,7 +231,7 @@ async function emailParent(
   const lead = waitlist
     ? `Thanks for enrolling ${d.athlete} in the ${ACADEMY.name}. The session you chose is full right now, so ${d.athlete} is on the waitlist. We’ll contact you as soon as a place opens up or to offer another session – nothing is payable yet.`
     : `Thanks for enrolling ${d.athlete} in the ${ACADEMY.name}. Their place is held for you.`;
-  const lines = [d.what, d.when, d.start ? `Starts ${d.start} at ${ACADEMY.venue}` : `At ${ACADEMY.venue}`, d.price && !waitlist ? `Price: ${d.price} (incl. GST)` : ''].filter(Boolean);
+  const lines = [d.what, d.when, d.start ? `Starts ${d.start} at ${ACADEMY.venue}` : `At ${ACADEMY.venue}`, d.price && !waitlist ? `Price: ${d.price}${GST_REGISTERED ? ' (incl. GST)' : ''}` : ''].filter(Boolean);
   const pay = waitlist ? '' : d.payUrl ? 'Please complete payment to confirm the place.' : 'We’ll send you the payment details shortly to confirm the place.';
   const r = await sendEmail({
     to: [to],

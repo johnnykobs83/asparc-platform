@@ -11,13 +11,14 @@ const SLUG = 'individual-high-performance-6-week';
 const asService = (s: (typeof DEFAULT_SERVICES)[number]) => ({ ...s, id: 'x', created_at: '', updated_at: '' }) as Service;
 
 describe('Individual 6-Week High-Performance Program special', () => {
-  it('is seeded with the owner-confirmed offer: $770 incl. GST, standard $990, first 10 athletes', () => {
+  it('is seeded with the owner-confirmed offer: $770, standard $990, first 10 athletes', () => {
     const s = DEFAULT_SERVICES.find((x) => x.slug === SLUG)!;
     assert.equal(s.category, 'performance');
     assert.equal(s.price_cents, 77000);
     assert.equal(s.price_status, 'approved');
     assert.equal(s.standard_price_cents, 99000);
-    assert.match(s.price_unit ?? '', /incl\. GST/);
+    // ASPARC isn't GST-registered yet (26 Nov 2026), so no "incl. GST" wording.
+    assert.doesNotMatch(`${s.price_unit} ${s.offer_terms}`, /GST/);
     assert.match(s.offer_terms ?? '', /first 10 athletes/);
     assert.equal(s.is_featured, true);
     assert.match(s.summary, /one 1-on-1 training session a week/);
@@ -37,7 +38,7 @@ describe('Individual 6-Week High-Performance Program special', () => {
     const s = asService(DEFAULT_SERVICES.find((x) => x.slug === SLUG)!);
     assert.ok(onSpecial(s));
     assert.match(offerText(s), /SPECIAL \(Introductory offer\): standard price \$990, save \$220\./);
-    assert.match(priceLine(s), /^Individual 6-Week High-Performance Program: \$770 for the 6-week program \(incl\. GST\) – SPECIAL/);
+    assert.match(priceLine(s), /^Individual 6-Week High-Performance Program: \$770 for the 6-week program – SPECIAL/);
   });
 });
 

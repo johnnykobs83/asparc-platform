@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { GST_REGISTERED, gstSuffix } from '@/lib/brand';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ACADEMY, ACADEMY_GROUPS, WEEKDAYS, WEEKDAYS_SHORT, ageOn, groupOf, groupsForAge, timeText, type AcademyGroupKey, type AcademyPackageKey } from '@/lib/academy/config';
 
@@ -244,7 +245,7 @@ export function AcademyEnrol() {
                     {money(p.price_cents)}
                     {special && <s className="ml-2 text-xl font-semibold text-muted">{money(p.standard_price_cents)}</s>}
                   </span>
-                  <span className="text-xs text-muted">incl. GST</span>
+                  {GST_REGISTERED && <span className="text-xs text-muted">incl. GST</span>}
                   {p.price_status === 'draft' && <span className="mt-2 text-xs text-warn">Draft price – subject to confirmation</span>}
                   <span className={`mt-5 inline-flex justify-center rounded-md px-3 py-2 text-sm font-semibold ${on ? 'bg-royal text-white' : 'border border-line'}`}>{on ? 'Selected' : 'Choose'}</span>
                 </button>
@@ -414,7 +415,7 @@ export function AcademyEnrol() {
 
                 {pkg && (
                   <p className="rounded-lg bg-mist px-4 py-3 text-sm">
-                    <strong>{pkg.label}</strong> – {pkg.detail}: <strong>{money(pkg.price_cents)}</strong> incl. GST
+                    <strong>{pkg.label}</strong> – {pkg.detail}: <strong>{money(pkg.price_cents)}</strong>{gstSuffix()}
                     {picked.length > 0 && <> · {picked.map((id) => data?.sessions.find((s) => s.id === id)).filter(Boolean).map((s) => `${WEEKDAYS_SHORT[s!.weekday]} ${timeText(s!.start_minutes)}`).join(' & ')}</>}
                   </p>
                 )}
