@@ -25,7 +25,7 @@ export function Header({ pathname: initialPath = '', onlineBooking = false }: { 
 
   return (
     <header className={`sticky top-0 z-40 border-b bg-white transition-shadow duration-300 ${scrolled || open ? 'border-line shadow-[0_8px_24px_-12px_rgba(16,24,32,0.25)]' : 'border-transparent'}`}>
-      <div className="container-x flex h-[84px] items-center justify-between gap-6">
+      <div className="container-x flex h-[84px] items-center justify-between gap-3 sm:gap-6">
         <Link href="/" aria-label="ASPARC home" className="shrink-0">
           <Logo className="h-[64px]" />
         </Link>
@@ -45,7 +45,8 @@ export function Header({ pathname: initialPath = '', onlineBooking = false }: { 
           })}
         </nav>
         <div className="flex items-center gap-2">
-          <Link href={cta.href} className="btn-primary hidden whitespace-nowrap !px-4 !py-2.5 !text-sm sm:inline-flex">
+          {/* Always in the top bar – on phones too – so booking is one tap from any page. */}
+          <Link href={cta.href} className="btn-primary whitespace-nowrap !px-3 !py-2 !text-[13px] sm:!px-4 sm:!py-2.5 sm:!text-sm">
             {cta.label}
           </Link>
           <button
