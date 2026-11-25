@@ -11,6 +11,7 @@ import { Overview } from './sections/Overview';
 import { AcademySection, BookingsSection, ConversationsSection, LeadsSection } from './sections/Pipeline';
 import { KnowledgeSection, PricingSection } from './sections/Content';
 import { MyWeekSection, PlannerSection } from './sections/Planner';
+import { BillingSection } from './sections/Billing';
 import { ClientsSection } from './sections/Clients';
 import { IntegrationsSection, NotificationsSection, ReportsSection, RevenueSection, SettingsSection } from './sections/System';
 
@@ -36,7 +37,8 @@ export function AdminApp({ section }: { section: string }) {
       case 'overview': return <Overview />;
       case 'planner': return can('planner:view') ? <PlannerSection can={can} /> : <NoAccess />;
       case 'my-week': return <MyWeekSection />;
-      case 'clients': return can('finance:manage') ? <ClientsSection /> : <ErrorNote message="Section not found" />;
+      case 'clients': return can('clients:view') ? <ClientsSection can={can} /> : <NoAccess />;
+      case 'billing': return can('finance:manage') ? <BillingSection /> : <ErrorNote message="Section not found" />;
       case 'conversations': return <ConversationsSection can={can} />;
       case 'leads': return <LeadsSection can={can} />;
       case 'bookings': return <BookingsSection can={can} />;

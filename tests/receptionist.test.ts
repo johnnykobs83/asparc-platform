@@ -29,8 +29,8 @@ describe('receptionist – guided mode (no OpenAI key)', () => {
 
   it('massage prices are marked draft and availability pending', async () => {
     const r = await send('how much is a remedial massage?');
-    assert.match(r.reply, /\$60/);
-    assert.match(r.reply, /\$100/);
+    assert.match(r.reply, /\$75/);
+    assert.match(r.reply, /\$145/);
     assert.match(r.reply, /draft pricing/);
     assert.match(r.reply, /availability being confirmed/);
   });

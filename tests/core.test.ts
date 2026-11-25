@@ -131,12 +131,12 @@ describe('auth', () => {
 });
 
 describe('knowledge base defaults honour the brief', () => {
-  it('academy is $380 draft, massage 60/80/100 draft', () => {
+  it('academy is $380 draft, massage 75/100/145 draft', () => {
     const a = DEFAULT_SERVICES.find((s) => s.slug === 'performance-academy')!;
     assert.equal(a.price_cents, 38000);
     assert.equal(a.price_status, 'draft');
     const m = DEFAULT_SERVICES.filter((s) => s.category === 'recovery').map((s) => [s.duration_minutes, s.price_cents, s.price_status]);
-    assert.deepEqual(m, [[30, 6000, 'draft'], [45, 8000, 'draft'], [60, 10000, 'draft']]);
+    assert.deepEqual(m, [[30, 7500, 'draft'], [45, 10000, 'draft'], [60, 14500, 'draft']]);
   });
   it('testing menu is the owner-confirmed list, priced on enquiry, and never mentions VALD/ForceDecks', () => {
     const t = DEFAULT_SERVICES.filter((s) => s.category === 'testing');

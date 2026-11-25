@@ -22,7 +22,7 @@ Services:
 - **Sports performance:** S&C, speed, agility, power, football-specific prep, individual development, adult PT.
 - **Performance Academy:** ages 8–10, 11–13, 14–16, 16–18. 10 weeks, one 45–60 min session per week. **$380, draft price.**
 - **Rehabilitation:** exercise-based return-to-performance only.
-- **Remedial massage:** 30/45/60 min at **$60/$80/$100, draft.** Delivered by contractors whose availability is still being confirmed.
+- **Remedial massage:** 30/45/60 min at **$75/$100/$145** (confirmed by the owner 25 Nov 2026, approved and bookable).
 - **Performance testing:** aerobic fitness, anaerobic fitness, functional strength, jump, speed, acceleration, power, body asymmetry and athletic profiling (confirmed by Johnny 11 Nov 2026; priced on enquiry).
 
 Founder: Bachelor of Exercise Science & Human Movement (2010), Master of High Performance (2017), professional football high performance with Newcastle Jets and Avondale FC.
@@ -50,6 +50,7 @@ Brand colours:
 | Area | Where | Summary |
 |---|---|---|
 | Website (10 pages) | `app/(site)/*`, `components/site/views/*` | Home, Sports Performance, Performance Academy, Rehabilitation, Recovery & Remedial Massage, Performance Testing, About, Contact, Privacy Policy, Terms. Server-rendered with `revalidate = 60`; content comes from the knowledge base in the DB. |
+| Client records & pre-visit form | `components/admin/sections/Clients.tsx`, `lib/clients/*`, `app/(site)/pre-visit/[token]` | One record per client with full history; pre-visit health form emailed on first booking and yearly; GP-clearance review; health info restricted. See `docs/CLIENT-RECORDS.md`. |
 | Enquiry forms (5) | `components/site/EnquiryForm.tsx`, `app/api/enquiries` | General, booking request, Academy (parent/guardian + consent), club partnership, massage. Zod validation, contact consent, separate marketing opt-in, honeypot, rate limiting. |
 | ASPARC AI receptionist | `lib/ai/*`, `components/chat/ChatWidget.tsx`, `app/api/chat` | OpenAI function calling with 7 controlled tools, **or guided mode with no key** (rules + knowledge base). Safety layer in code: AI disclosure; emergency → 000; self-harm → 000 + Lifeline 13 11 14; no diagnosis; card numbers redacted; complaints escalated; false "booked/paid" replies and invented prices blocked. |
 | Lead intake & qualification | `lib/leads/*` | One `submitEnquiry()` path for every form and the chat. Transparent qualification score and priority; 6 stages (New Enquiry → Contacted → Qualified → Booking Requested → Converted / Not Proceeding); history; follow-ups. |
@@ -212,7 +213,7 @@ All of these are edited in `/admin` (no code), except the legal flag and photos:
 - [ ] **Knowledge Base → Location:** venue address → *Approved*.
 - [ ] **Knowledge Base → Opening hours** → *Approved*.
 - [ ] **Knowledge Base → Cancellation & refund policy** → write + *Approved*.
-- [ ] **Pricing & Services:** approve or keep draft Academy $380 and massage $60/$80/$100. Set Academy and massage availability once dates and contractors are confirmed. Set only the testing assessments ASPARC can actually deliver to *Available*.
+- [ ] **Pricing & Services:** approve or keep draft Academy $380. Set Academy and massage availability once dates and contractors are confirmed. Set only the testing assessments ASPARC can actually deliver to *Available*.
 - [ ] **Legal:** have a lawyer review `/privacy-policy` and `/terms-and-conditions` (text in `components/site/views/StaticPages.tsx`). Then 🤖 set `LEGAL_STATUS.reviewed = true` in `lib/legal.ts`.
 - [ ] **Photography:** add files named per `public/images/README.md` (hero, sports-performance, academy, rehabilitation, recovery, performance-testing, founder, about). Licensed or owned only; written consent for identifiable people; parent/guardian consent for minors.
 - [ ] **Optional brand assets:** SVG logo master, reversed (white) logo → `logo.srcOnDark` in `lib/brand.ts`, and a square icon mark → `app/icon.png`.

@@ -18,6 +18,8 @@ const Fields = {
   weekly_hours: z.record(z.string().regex(/^[0-6]$/), z.array(Window).max(4)).transform((v) => normaliseWeeklyHours(v)),
   buffer_minutes: z.number().int().min(0).max(120),
   active: z.boolean(),
+  /** The same person in the staff planner, so they can see health forms for their own clients. */
+  staff_member_id: z.string().uuid().nullable().optional(),
 };
 
 /** Dashboard input when adding a practitioner. */

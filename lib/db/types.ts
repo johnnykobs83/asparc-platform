@@ -104,6 +104,13 @@ export interface Customer {
   consent_marketing_at: Iso | null;
   source: LeadSource;
   hubspot_contact_id: string | null;
+  /** Client record details (migration 000009). Contact details only – never health information. */
+  date_of_birth?: string | null;
+  address?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  sport?: string | null;
+  club?: string | null;
   created_at: Iso;
   updated_at: Iso;
 }
@@ -339,6 +346,8 @@ export interface Practitioner {
   weekly_hours: WeeklyHours;
   buffer_minutes: number;
   active: boolean;
+  /** The same person in the staff planner – lets them see health forms for their own clients. */
+  staff_member_id?: Uuid | null;
   created_at: Iso;
   updated_at: Iso;
 }
@@ -381,6 +390,49 @@ export const JOB_TYPE_LABELS: Record<JobType, string> = {
 };
 export const LOCATION_KINDS = ['asparc', 'club', 'school', 'client_site', 'other'] as const;
 export const LEAVE_REASONS = ['leave', 'unavailable', 'sick', 'other'] as const;
+
+export interface ClientNote {
+  id: Uuid;
+  customer_id: Uuid;
+  author_id: Uuid | null;
+  author_name: string | null;
+  body: string;
+  created_at: Iso;
+}
+
+export const INTAKE_REVIEW = ['not_needed', 'needs_review', 'cleared', 'not_cleared'] as const;
+export type IntakeReview = (typeof INTAKE_REVIEW)[number];
+
+/** The pre-visit form. Contains HEALTH INFORMATION – see lib/clients/access.ts for who may read it. */
+export interface IntakeForm {
+  id: Uuid;
+  customer_id: Uuid;
+  status: 'sent' | 'submitted' | 'cancelled';
+  sent_at: Iso;
+  sent_by: string | null;
+  sent_to: string | null;
+  reason: 'first_booking' | 'yearly_recheck' | 'manual';
+  expires_at: Iso;
+  submitted_at: Iso | null;
+  for_whom: 'self' | 'child' | null;
+  athlete_name: string | null;
+  athlete_dob: string | null;
+  details: Record<string, unknown>;
+  screening: Record<string, unknown>;
+  health: Record<string, unknown>;
+  screening_flags: number;
+  review_status: IntakeReview;
+  reviewed_by: string | null;
+  reviewed_at: Iso | null;
+  review_note: string | null;
+  consent_health: boolean;
+  consent_risk: boolean;
+  consent_marketing: boolean;
+  signature_name: string | null;
+  valid_until: string | null;
+  created_at: Iso;
+  updated_at: Iso;
+}
 
 export interface StaffMember {
   id: Uuid;
@@ -540,6 +592,8 @@ export interface ClientInvoice {
 
 export interface Tables {
   customers: Customer;
+  client_notes: ClientNote;
+  intake_forms: IntakeForm;
   conversations: Conversation;
   messages: Message;
   leads: Lead;

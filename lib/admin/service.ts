@@ -117,7 +117,8 @@ export async function listWithCustomer<T extends 'booking_requests' | 'academy_r
 
 /**
  * Privacy request: permanently removes a customer and everything linked
- * (leads, events, bookings, registrations; conversations are deleted too).
+ * (leads, events, bookings, registrations, appointments, pre-visit forms and
+ * client notes; conversations are deleted too).
  */
 export async function deleteCustomerData(customerId: string) {
   const repo = db();
@@ -134,6 +135,19 @@ export async function deleteCustomerData(customerId: string) {
   }
   for (const b of await repo.list('booking_requests', { eq: { customer_id: customerId } })) await repo.remove('booking_requests', b.id);
   for (const r of await repo.list('academy_registrations', { eq: { guardian_customer_id: customerId } })) await repo.remove('academy_registrations', r.id);
+  const appointments = await repo.list('appointments', { eq: { customer_id: customerId }, limit: 5000 });
+  for (const a of appointments) await repo.remove('appointments', a.id);
+  let forms = 0;
+  // These tables arrive with migration 000009; before that there is nothing to remove.
+  try {
+    for (const f of await repo.list('intake_forms', { eq: { customer_id: customerId }, limit: 1000 })) {
+      await repo.remove('intake_forms', f.id);
+      forms++;
+    }
+    for (const n of await repo.list('client_notes', { eq: { customer_id: customerId }, limit: 5000 })) await repo.remove('client_notes', n.id);
+  } catch (e) {
+    if (!/intake_forms|client_notes|does not exist|PGRST205/i.test(String(e))) throw e;
+  }
   await repo.remove('customers', customerId);
-  return { leads: leads.length, conversations: convos.length };
+  return { leads: leads.length, conversations: convos.length, appointments: appointments.length, forms };
 }

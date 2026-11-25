@@ -39,7 +39,7 @@ describe('Staff add a booking on the schedule', () => {
     const body = await r.json();
     assert.equal(body.customer_email, 'no_email');
     const a = (await db().list('appointments'))[0];
-    assert.deepEqual([a.starts_at, a.ends_at, a.status, a.price_cents, a.final_price_cents], [at(600), at(660), 'confirmed', 10000, null]);
+    assert.deepEqual([a.starts_at, a.ends_at, a.status, a.price_cents, a.final_price_cents], [at(600), at(660), 'confirmed', 14500, null]);
     assert.equal(a.source, 'staff:staff@asparc.test');
     const c = await db().get('customers', a.customer_id);
     assert.deepEqual([c?.full_name, c?.phone, c?.consent_contact, c?.consent_marketing], ['Phone Customer', '0400 555 666', true, false]);
@@ -60,7 +60,7 @@ describe('Staff add a booking on the schedule', () => {
     const { p, s60 } = await setup();
     await add({ practitioner_id: p.id, service_id: s60.id, date: DAY, minutes: 600, full_name: 'Member', email: 'member@example.com', price_cents: 8000 });
     const row = (await (await apptGET(req('/api/admin/appointments', { cookie: await adminCookie('staff') }))).json()).appointments[0];
-    assert.deepEqual([row.list_price_cents, row.final_price_cents, row.charge_cents], [10000, 8000, 8000]);
+    assert.deepEqual([row.list_price_cents, row.final_price_cents, row.charge_cents], [14500, 8000, 8000]);
   });
 
   it('never double-books, and reuses an existing customer by email', async () => {
@@ -102,14 +102,17 @@ describe('Customer emails when the schedule changes', () => {
     const calls = resend();
     const r = await (await add({ practitioner_id: p.id, service_id: s60.id, date: DAY, minutes: 600, full_name: 'Email Customer', email: 'customer@example.com' })).json();
     assert.equal(r.customer_email, 'sent');
-    assert.equal(calls.length, 1);
+    // The confirmation, then the pre-visit health form for a first booking.
+    assert.equal(r.pre_visit_form, 'sent');
+    assert.equal(calls.length, 2);
+    assert.match(mail(calls[1]).subject, /pre-visit form/);
     const m = mail(calls[0]);
     assert.deepEqual(m.to, ['customer@example.com']);
     assert.match(m.subject, /booking is confirmed/);
     assert.match(m.text, /Remedial Massage – 60 minutes/);
     assert.match(m.text, /With Test Therapist/);
     assert.match(m.text, /10:00/);
-    assert.match(m.text, /Price: \$100/);
+    assert.match(m.text, /Price: \$145/);
     assert.equal(calls[0].headers.Authorization, 'Bearer re_test_key');
   });
 

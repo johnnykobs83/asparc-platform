@@ -45,6 +45,12 @@ export const DEFAULTS: { [K in TableName]?: Partial<Tables[K]> } = {
     consent_marketing_at: null,
     source: 'other',
     hubspot_contact_id: null,
+    date_of_birth: null,
+    address: null,
+    emergency_contact_name: null,
+    emergency_contact_phone: null,
+    sport: null,
+    club: null,
   },
   conversations: {
     channel: 'website',
@@ -132,7 +138,13 @@ export const DEFAULTS: { [K in TableName]?: Partial<Tables[K]> } = {
   payments: { customer_id: null, provider: 'stripe', description: null, currency: 'aud', paid_at: null, service_slug: null, tax_cents: null, refunded_cents: 0 },
   daily_summaries: { timezone: 'Australia/Melbourne', email_status: 'not_required' },
   admin_users: { full_name: null, role: 'staff', active: true, password_hash: null, last_login_at: null },
-  practitioners: { title: null, service_ids: [], weekly_hours: {}, buffer_minutes: 0, active: true },
+  practitioners: { title: null, service_ids: [], weekly_hours: {}, buffer_minutes: 0, active: true, staff_member_id: null },
+  client_notes: { author_id: null, author_name: null },
+  intake_forms: {
+    status: 'sent', sent_by: null, sent_to: null, reason: 'manual', submitted_at: null, for_whom: null, athlete_name: null, athlete_dob: null,
+    details: {}, screening: {}, health: {}, screening_flags: 0, review_status: 'not_needed', reviewed_by: null, reviewed_at: null, review_note: null,
+    consent_health: false, consent_risk: false, consent_marketing: false, signature_name: null, valid_until: null,
+  },
   staff_members: { email: null, phone: null, role_title: null, employment_type: 'employee', admin_user_id: null, active: true },
   work_locations: { kind: 'other', address: null, access_notes: null, colour: '#14519C', client_id: null, active: true },
   planner_jobs: { job_type: 'other', client_id: null, notes: null, status: 'scheduled', series_id: null, created_by: null },
@@ -166,4 +178,5 @@ export const HAS_UPDATED_AT: ReadonlySet<TableName> = new Set<TableName>([
   'clients',
   'client_agreements',
   'client_invoices',
+  'intake_forms',
 ]);

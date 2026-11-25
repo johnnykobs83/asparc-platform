@@ -8,7 +8,10 @@ import type { Role } from '../db/types';
  *   staff   – view all + work leads, bookings, academy, conversations, notifications
  *
  * Staff planner: everyone can see the week and their own jobs; owners and managers plan it.
- * Client billing (clients, agreements, invoices, what each client spends): the OWNER only.
+ * Club billing (clubs, agreements, invoices, what each club spends): the OWNER only.
+ * Client records: everyone sees contact details and history; health forms and client
+ * notes need 'clients:health' (owner, manager) – or being the practitioner on that
+ * client's booking, which lib/clients/service.ts checks.
  */
 export const PERMISSIONS = {
   'dashboard:view': ['owner', 'manager', 'staff'],
@@ -23,6 +26,9 @@ export const PERMISSIONS = {
   'integrations:view': ['owner', 'manager'],
   'integrations:run': ['owner', 'manager'],
   'revenue:view': ['owner', 'manager'],
+  'clients:view': ['owner', 'manager', 'staff'],
+  'clients:write': ['owner', 'manager', 'staff'],
+  'clients:health': ['owner', 'manager'],
   'planner:view': ['owner', 'manager', 'staff'],
   'planner:write': ['owner', 'manager'],
   'finance:manage': ['owner'],

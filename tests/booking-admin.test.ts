@@ -90,20 +90,20 @@ describe('Bookings – prices and discounts', () => {
   it('stores the list price at booking time and shows it to the customer and staff', async () => {
     const { s60 } = await setup();
     const confirmation = await book(s60.id, 600);
-    assert.equal(confirmation.price_cents, 10000);
-    assert.equal((await only()).price_cents, 10000);
+    assert.equal(confirmation.price_cents, 14500);
+    assert.equal((await only()).price_cents, 14500);
     const row = (await adminList())[0];
-    assert.equal(row.list_price_cents, 10000);
+    assert.equal(row.list_price_cents, 14500);
     assert.equal(row.final_price_cents, null);
-    assert.equal(row.charge_cents, 10000);
-    assert.match((await db().list('notifications')).find((n) => /Booked online/.test(n.title))!.body, /\$100/);
+    assert.equal(row.charge_cents, 14500);
+    assert.match((await db().list('notifications')).find((n) => /Booked online/.test(n.title))!.body, /\$145/);
   });
 
   it('a later change to the service price does not change existing bookings', async () => {
     const { s60 } = await setup();
     await book(s60.id, 600);
     await db().update('services', s60.id, { price_cents: 14000 });
-    assert.equal((await adminList())[0].charge_cents, 10000);
+    assert.equal((await adminList())[0].charge_cents, 14500);
   });
 
   it('staff can discount a booking with a reason, and reset it', async () => {
@@ -113,12 +113,12 @@ describe('Bookings – prices and discounts', () => {
     const r = await patch(a.id, { price: { final_price_cents: 8000, note: 'Club member 20% off' } });
     assert.equal(r.status, 200);
     let row = (await adminList())[0];
-    assert.deepEqual([row.list_price_cents, row.final_price_cents, row.charge_cents, row.price_note], [10000, 8000, 8000, 'Club member 20% off']);
+    assert.deepEqual([row.list_price_cents, row.final_price_cents, row.charge_cents, row.price_note], [14500, 8000, 8000, 'Club member 20% off']);
     assert.equal((await patch(a.id, { price: { final_price_cents: 0, note: 'Complimentary' } })).status, 200);
     assert.equal((await adminList())[0].charge_cents, 0);
     await patch(a.id, { price: { final_price_cents: null } });
     row = (await adminList())[0];
-    assert.deepEqual([row.final_price_cents, row.charge_cents, row.price_note], [null, 10000, null]);
+    assert.deepEqual([row.final_price_cents, row.charge_cents, row.price_note], [null, 14500, null]);
   });
 
   it('rejects negative or non-numeric prices and requires sign-in', async () => {

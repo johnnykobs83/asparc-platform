@@ -74,3 +74,24 @@ do $$ begin
   begin insert into planner_weeks (week_start) values ('2026-12-01'); raise exception 'FAIL week must start on Monday';
   exception when check_violation then raise notice 'OK planner weeks start on a Monday'; end;
 end $$;
+
+-- Client records + pre-visit health forms (migration 000009)
+insert into intake_forms (customer_id, expires_at) select id, now() + interval '30 days' from customers limit 1;
+insert into client_notes (customer_id, body) select id, 'Test note' from customers limit 1;
+do $$ begin
+  begin update intake_forms set status = 'submitted'; raise exception 'FAIL submitted form without consent';
+  exception when check_violation then raise notice 'OK a submitted form needs consents and a signature'; end;
+end $$;
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
+select case when count(*)=0 then 'OK staff see 0 health forms directly' else 'FAIL' end from intake_forms;
+select case when count(*)=0 then 'OK staff see 0 client notes directly' else 'FAIL' end from client_notes;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',false);
+select case when count(*)=1 then 'OK owner sees health forms' else 'FAIL' end from intake_forms;
+reset role;
+set role anon;
+do $$ begin
+  begin perform * from intake_forms; raise exception 'FAIL anon could read health forms';
+  exception when insufficient_privilege then raise notice 'OK anon denied health forms'; end;
+end $$;
+reset role;

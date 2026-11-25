@@ -22,8 +22,8 @@ export const GET = handler(async (req) => {
 export const POST = handler(async (req) => {
   const session = await requireAdmin(req, 'bookings:write');
   try {
-    const { appointment, customerEmail } = await createStaffBooking(await readJson(req, 8_000), session.email);
-    return json({ appointment, customer_email: customerEmail }, 201);
+    const { appointment, customerEmail, preVisitForm } = await createStaffBooking(await readJson(req, 8_000), session.email);
+    return json({ appointment, customer_email: customerEmail, pre_visit_form: preVisitForm }, 201);
   } catch (e) {
     if (e instanceof BookingError) return error(e.message, e.status);
     throw e;

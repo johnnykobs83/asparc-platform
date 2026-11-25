@@ -16,6 +16,8 @@ interface PractitionerRow {
   weekly_hours: Hours;
   buffer_minutes: number;
   active: boolean;
+  /** The same person in the staff planner (lets them see their own clients' health forms). */
+  staff_member_id?: string | null;
 }
 interface ServiceRow {
   id: string;
@@ -38,8 +40,10 @@ interface AppointmentRow {
   final_price_cents: number | null;
   charge_cents: number | null;
   price_note: string | null;
+  customer_id: string;
   customer: { full_name: string; email: string | null; phone: string | null } | null;
 }
+interface ClientHit { id: string; full_name: string; email: string | null; phone: string | null; visits: number; last_visit: string | null; form: string }
 
 // Monday first, as people read a working week. Keys match JavaScript's getDay().
 const DAYS: [key: string, name: string][] = [['1', 'Monday'], ['2', 'Tuesday'], ['3', 'Wednesday'], ['4', 'Thursday'], ['5', 'Friday'], ['6', 'Saturday'], ['0', 'Sunday']];
@@ -53,7 +57,7 @@ const hoursSummary = (h: Hours) =>
     .map(([k, n]) => `${n.slice(0, 3)} ${h[k].map((w) => `${toTime(w.start)}–${toTime(w.end)}`).join(', ')}`)
     .join(' · ') || 'No hours set';
 
-const blank: Omit<PractitionerRow, 'id'> = { name: '', title: '', service_ids: [], weekly_hours: {}, buffer_minutes: 0, active: true };
+const blank: Omit<PractitionerRow, 'id'> = { name: '', title: '', service_ids: [], weekly_hours: {}, buffer_minutes: 0, active: true, staff_member_id: null };
 const STATUS_TONE: Record<string, 'green' | 'neutral' | 'red' | 'amber'> = { confirmed: 'green', completed: 'neutral', cancelled: 'red', no_show: 'amber' };
 
 /** Online self-service bookings: who can be booked and when, plus the appointments customers have made. */
@@ -61,6 +65,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
   const practitioners = useApi<{ ready: boolean; practitioners: PractitionerRow[] }>('/api/admin/practitioners');
   const appointments = useApi<{ ready: boolean; email_ready?: boolean; appointments: AppointmentRow[] }>('/api/admin/appointments');
   const services = useApi<{ services: ServiceRow[] }>('/api/admin/services');
+  const staffList = useApi<{ staff: { id: string; full_name: string; active: boolean }[] }>(can('services:write') ? '/api/admin/planner/staff' : null);
   const [editing, setEditing] = useState<{ id: string | null; draft: Omit<PractitionerRow, 'id'> } | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -143,7 +148,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
     if (!priceNote.trim()) setPriceNote(`${pct}% discount`);
   };
 
-  interface NewBooking { practitioner_id: string; service_id: string; service_name: string; date: string; time: string; duration: string; full_name: string; email: string; phone: string; notes: string; price: string }
+  interface NewBooking { practitioner_id: string; service_id: string; service_name: string; date: string; time: string; duration: string; full_name: string; email: string; phone: string; notes: string; price: string; customer_id: string }
   const [adding, setAdding] = useState<NewBooking | null>(null);
   const [addError, setAddError] = useState<{ message: string; fields: Record<string, string> } | null>(null);
   const [addSaving, setAddSaving] = useState(false);
@@ -157,9 +162,33 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
       return;
     }
     setAddError(null);
-    setAdding({ practitioner_id: first.id, service_id: '', service_name: '', date, time: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`, duration: '', full_name: '', email: '', phone: '', notes: '', price: '' });
+    setAdding({ practitioner_id: first.id, service_id: '', service_name: '', date, time: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`, duration: '', full_name: '', email: '', phone: '', notes: '', price: '', customer_id: '' });
+    setClientQuery('');
+    setClientHits([]);
   }
   const patchAdd = (v: Partial<NewBooking>) => setAdding((a) => (a ? { ...a, ...v } : a));
+
+  /** Client picker: search the client database so returning clients keep one record and their history. */
+  const [clientQuery, setClientQuery] = useState('');
+  const [clientHits, setClientHits] = useState<ClientHit[]>([]);
+  useEffect(() => {
+    const q = clientQuery.trim();
+    if (q.length < 2) {
+      setClientHits([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      api<{ clients: ClientHit[] }>(`/api/admin/clients?q=${encodeURIComponent(q)}&limit=8`)
+        .then((r) => setClientHits(r.clients))
+        .catch(() => setClientHits([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [clientQuery]);
+  function pickClient(c: ClientHit) {
+    patchAdd({ customer_id: c.id, full_name: c.full_name, email: c.email ?? '', phone: c.phone ?? '' });
+    setClientQuery('');
+    setClientHits([]);
+  }
   /** Choosing a service fills in its usual length and price; staff can change both. */
   function chooseService(id: string) {
     const svc = allServices.find((x) => x.id === id) as (ServiceRow & { price_cents?: number | null; price_status?: string }) | undefined;
@@ -171,7 +200,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
     setAddSaving(true);
     setAddError(null);
     try {
-      const r = await api<{ customer_email?: EmailStatus }>('/api/admin/appointments', {
+      const r = await api<{ customer_email?: EmailStatus; pre_visit_form?: string }>('/api/admin/appointments', {
         body: {
           practitioner_id: adding.practitioner_id,
           service_id: adding.service_id || null,
@@ -184,10 +213,12 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
           phone: adding.phone.trim() || undefined,
           notes: adding.notes.trim() || undefined,
           price_cents: adding.price === '' ? undefined : Math.round(Number(adding.price) * 100),
+          customer_id: adding.customer_id || undefined,
         },
       });
       setAdding(null);
-      toast(`Booking added.${emailNote(r.customer_email)}`, r.customer_email === 'failed' ? 'err' : 'ok');
+      const form = r.pre_visit_form === 'sent' ? ' The pre-visit health form was emailed too.' : '';
+      toast(`Booking added.${emailNote(r.customer_email)}${form}`, r.customer_email === 'failed' ? 'err' : 'ok');
       await appointments.reload();
     } catch (e) {
       const fields = (e as { fields?: Record<string, string> }).fields ?? {};
@@ -301,7 +332,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
                   <p className="mt-0.5 text-xs text-muted">{hoursSummary(p.weekly_hours ?? {})}</p>
                   <p className="mt-0.5 text-xs text-muted">{p.service_ids.length ? p.service_ids.map((id) => serviceName.get(id) ?? 'Removed service').join(', ') : 'No services assigned'}</p>
                 </div>
-                {can('services:write') && <Button size="sm" variant="secondary" onClick={() => { setFormError(null); setEditing({ id: p.id, draft: { name: p.name, title: p.title ?? '', service_ids: p.service_ids ?? [], weekly_hours: p.weekly_hours ?? {}, buffer_minutes: p.buffer_minutes, active: p.active } }); }}>Edit</Button>}
+                {can('services:write') && <Button size="sm" variant="secondary" onClick={() => { setFormError(null); setEditing({ id: p.id, draft: { name: p.name, title: p.title ?? '', service_ids: p.service_ids ?? [], weekly_hours: p.weekly_hours ?? {}, buffer_minutes: p.buffer_minutes, active: p.active, staff_member_id: p.staff_member_id ?? null } }); }}>Edit</Button>}
               </li>
             ))}
           </ul>
@@ -338,6 +369,32 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
               <label className="block"><span className="font-medium">Minutes</span><input type="number" min={5} max={480} step={5} className="mt-1 block w-24 rounded-md border border-line px-2 py-2" value={adding.duration} onChange={(e) => patchAdd({ duration: e.target.value })} /></label>
             </div>
             {addError?.fields.duration_minutes && <p className="text-xs text-danger">{addError.fields.duration_minutes}</p>}
+            {adding.customer_id ? (
+              <p className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky/40 bg-sky-100/60 px-3 py-2 text-royal-800">
+                <span>Booking for an existing client – their history stays on one record.</span>
+                <Button size="sm" variant="ghost" onClick={() => patchAdd({ customer_id: '', full_name: '', email: '', phone: '' })}>Not them</Button>
+              </p>
+            ) : (
+              <div className="relative">
+                <label className="block">
+                  <span className="font-medium">Find an existing client</span>
+                  <input className="mt-1 w-full rounded-md border border-line px-3 py-2" autoComplete="off" placeholder="Search by name, email or mobile" value={clientQuery} onChange={(e) => setClientQuery(e.target.value)} />
+                </label>
+                {clientHits.length > 0 && (
+                  <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-line bg-white shadow-lg">
+                    {clientHits.map((c) => (
+                      <li key={c.id}>
+                        <button type="button" className="block w-full px-3 py-2 text-left hover:bg-mist" onClick={() => pickClient(c)}>
+                          <span className="font-medium">{c.full_name}</span>
+                          <span className="block text-xs text-muted">{[c.email, c.phone].filter(Boolean).join(' · ')}{c.visits ? ` · ${c.visits} visit${c.visits === 1 ? '' : 's'}` : ''}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {clientQuery.trim().length >= 2 && clientHits.length === 0 && <p className="mt-1 text-xs text-muted">No match – enter their details below to add them as a new client.</p>}
+              </div>
+            )}
             <label className="block">
               <span className="font-medium">Customer name</span>
               <input className="mt-1 w-full rounded-md border border-line px-3 py-2" autoComplete="off" value={adding.full_name} onChange={(e) => patchAdd({ full_name: e.target.value })} />
@@ -383,6 +440,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
                 ['Status', <Badge key="s" tone={STATUS_TONE[selected.status] ?? 'neutral'}>{label(selected.status)}</Badge>],
                 ['Mobile', selected.customer?.phone ? <a key="p" className="text-royal underline" href={`tel:${selected.customer.phone.replace(/\s/g, '')}`}>{selected.customer.phone}</a> : '–'],
                 ['Email', selected.customer?.email ? <a key="e" className="text-royal underline" href={`mailto:${selected.customer.email}`}>{selected.customer.email}</a> : '–'],
+                ['Client record', <a key="cr" className="text-royal underline" href={`/admin/clients?id=${selected.customer_id}`}>Open history, health form and notes</a>],
                 ['Customer note', selected.notes ?? '–'],
                 [
                   'Price',
@@ -504,6 +562,16 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
             </label>
             <label className="flex items-center gap-2">
               <input type="checkbox" className="accent-royal" checked={editing.draft.active} onChange={(e) => patch({ active: e.target.checked })} /> Available for online booking
+            </label>
+            <label className="block">
+              <span className="font-medium">Same person in the Staff Planner</span>
+              <select className="mt-1 block w-full rounded-md border border-line px-3 py-2" value={editing.draft.staff_member_id ?? ''} onChange={(e) => patch({ staff_member_id: e.target.value || null })}>
+                <option value="">Not linked</option>
+                {(staffList.data?.staff ?? []).filter((s) => s.active || s.id === editing.draft.staff_member_id).map((s) => (
+                  <option key={s.id} value={s.id}>{s.full_name}</option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-muted">Linking lets this practitioner (when they sign in to the dashboard) read the pre-visit health forms and notes of the clients they see. Managers can always see them.</span>
             </label>
 
             {formError && <p className="text-danger" role="alert">{formError}</p>}

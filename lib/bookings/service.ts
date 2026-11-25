@@ -6,6 +6,7 @@ import { emailLayout, sendEmail } from '../integrations/resend';
 import { listKnowledge, listServices } from '../kb/service';
 import { notify } from '../notifications/service';
 import { addDays, formatMelbourne, melbourneDate, offsetMinutes } from '../time/melbourne';
+import { sendIntakeIfDue } from '../clients/intake';
 
 /**
  * Online self-service bookings.
@@ -345,6 +346,9 @@ export async function createBooking(raw: unknown, nowMs = Date.now()): Promise<B
       entityId: appointment.id,
     });
   }
+
+  // First booking, or their health form is more than a year old: send the pre-visit form.
+  await sendIntakeIfDue(customer.id, appointment.starts_at, 'online booking');
 
   return {
     appointment,

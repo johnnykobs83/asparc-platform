@@ -5,6 +5,7 @@ import type { Appointment, Customer } from '../db/types';
 import { emailLayout, isResendConfigured, sendEmail } from '../integrations/resend';
 import { listKnowledge } from '../kb/service';
 import { BookingError, dollars, insertAppointment, isOverlapError, melbourneLocalToUtc, whenText } from './service';
+import { sendIntakeIfDue } from '../clients/intake';
 
 /**
  * Staff actions on the schedule: adding a booking by hand, and emailing the
@@ -104,6 +105,8 @@ export const StaffBookingSchema = z
       .transform((v) => (v ? v : undefined)),
     /** Price to charge in cents. Leave out to use the service's list price. */
     price_cents: z.number().int().min(0).max(1_000_000).nullable().optional(),
+    /** An existing client picked from the client database. */
+    customer_id: z.string().uuid().optional(),
   })
   .strict()
   .superRefine((v, ctx) => {
@@ -114,6 +117,15 @@ export const StaffBookingSchema = z
 
 async function upsertStaffCustomer(b: z.output<typeof StaffBookingSchema>): Promise<Customer> {
   const repo = db();
+  if (b.customer_id) {
+    // Picked from the client database: keep their record, only filling in a missing email or mobile.
+    const picked = await repo.get('customers', b.customer_id);
+    if (!picked) throw new BookingError(404, 'That client could not be found. Search again or enter their details.');
+    const fill: Partial<Customer> = {};
+    if (!picked.email && b.email && !(await repo.findOne('customers', { email: b.email }))) fill.email = b.email;
+    if (!picked.phone && b.phone) fill.phone = b.phone;
+    return Object.keys(fill).length ? (await repo.update('customers', picked.id, fill))! : picked;
+  }
   const existing = (b.email ? await repo.findOne('customers', { email: b.email }) : null) ?? (b.phone && !b.email ? await repo.findOne('customers', { phone: b.phone }) : null);
   if (existing) return (await repo.update('customers', existing.id, { full_name: b.full_name, phone: b.phone ?? existing.phone, email: existing.email ?? b.email ?? null }))!;
   // The customer asked staff for this booking, so contacting them about it is expected. Marketing is never assumed.
@@ -124,7 +136,7 @@ async function upsertStaffCustomer(b: z.output<typeof StaffBookingSchema>): Prom
  * Staff add a booking straight onto the schedule. Staff are not limited to the published
  * hours or notice period, but a booking can never overlap another for the same practitioner.
  */
-export async function createStaffBooking(raw: unknown, staffEmail: string): Promise<{ appointment: Appointment; customerEmail: CustomerEmailStatus }> {
+export async function createStaffBooking(raw: unknown, staffEmail: string): Promise<{ appointment: Appointment; customerEmail: CustomerEmailStatus; preVisitForm: Awaited<ReturnType<typeof sendIntakeIfDue>> }> {
   const b = StaffBookingSchema.parse(raw);
   const repo = db();
   const practitioner = await repo.get('practitioners', b.practitioner_id);
@@ -164,5 +176,8 @@ export async function createStaffBooking(raw: unknown, staffEmail: string): Prom
     if (isOverlapError(e)) throw new BookingError(409, 'That time overlaps another booking for this practitioner.');
     throw e;
   }
-  return { appointment, customerEmail: await emailCustomerAboutBooking('confirmed', appointment) };
+  const customerEmail = await emailCustomerAboutBooking('confirmed', appointment);
+  // First booking, or their health form is more than a year old: send the pre-visit form.
+  const preVisitForm = await sendIntakeIfDue(customer.id, appointment.starts_at, `staff:${staffEmail}`);
+  return { appointment, customerEmail, preVisitForm };
 }
