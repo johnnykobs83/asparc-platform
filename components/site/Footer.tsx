@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
 import type { PublicSiteData } from '@/lib/kb/service';
 import { Logo } from './Logo';
-import { LEGAL, NAV } from './nav';
+import { CLINIC_PAGES, DIVISIONS } from '@/lib/site/divisions';
+import { LEGAL } from './nav';
 
 export function Footer({ site }: { site: PublicSiteData }) {
   const { contact } = site;
@@ -16,17 +17,27 @@ export function Footer({ site }: { site: PublicSiteData }) {
     <footer className="relative overflow-hidden bg-charcoal text-white">
       <div className="speed-lines absolute inset-0 opacity-60" aria-hidden="true" />
       <div className="container-x relative grid gap-12 py-16 md:grid-cols-12">
-        <div className="md:col-span-4">
+        <div className="md:col-span-3">
           <Logo onDark className="h-24" />
           <p className="mt-6 font-display text-3xl font-bold uppercase leading-none tracking-tight">
             High performance <span className="text-sky">starts here.</span>
           </p>
-          <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/60">{BRAND.fullName}. Sports performance, athlete development, rehabilitation and recovery in {BRAND.location}.</p>
+          <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/60">{BRAND.fullName}. Club performance services, a sports performance clinic, a football academy and consulting – in {BRAND.location}.</p>
         </div>
-        <div className="md:col-span-3">
-          <h2 className="eyebrow mb-4">Services</h2>
+        <div className="md:col-span-2">
+          <h2 className="eyebrow mb-4">What we do</h2>
           <ul className="space-y-2.5 text-sm text-white/75">
-            {NAV.slice(0, 5).map((n) => (
+            {DIVISIONS.map((d) => (
+              <li key={d.href}>
+                <Link href={d.href} className="hover:text-white">{d.name}</Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="md:col-span-2">
+          <h2 className="eyebrow mb-4">At the clinic</h2>
+          <ul className="space-y-2.5 text-sm text-white/75">
+            {CLINIC_PAGES.map((n) => (
               <li key={n.href}>
                 <Link href={n.href} className="hover:text-white">{n.label}</Link>
               </li>
@@ -39,7 +50,7 @@ export function Footer({ site }: { site: PublicSiteData }) {
             <li><Link href="/about" className="hover:text-white">About</Link></li>
             <li><Link href="/contact" className="hover:text-white">Contact</Link></li>
             <li><Link href="/performance-academy#enrol" className="hover:text-white">Academy enrolment</Link></li>
-            <li><Link href="/contact?form=club" className="hover:text-white">Club partnerships</Link></li>
+            <li><Link href="/club-performance-services#enquire" className="hover:text-white">Club enquiries</Link></li>
           </ul>
         </div>
         <div className="md:col-span-3">

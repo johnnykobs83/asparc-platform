@@ -414,7 +414,7 @@ export function AboutView({ site }: { site: PublicSiteData }) {
           ))}
         </div>
       </Section>
-      <CtaBand title="Work with ASPARC" text="Athletes, parents and clubs – we’d love to hear from you." primary={{ href: '/contact', label: 'Contact us' }} secondary={{ href: '/contact?form=club', label: 'Club partnerships' }} />
+      <CtaBand title="Work with ASPARC" text="Athletes, parents and clubs – we’d love to hear from you." primary={{ href: '/contact', label: 'Contact us' }} secondary={{ href: '/club-performance-services', label: 'Club Performance Services' }} />
     </>
   );
 }

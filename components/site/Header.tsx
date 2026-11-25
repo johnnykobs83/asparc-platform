@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Logo } from './Logo';
-import { NAV } from './nav';
+import { NAV, type NavItem } from './nav';
+
+const isActive = (n: NavItem, path: string) => path.startsWith(n.href) || !!n.children?.some((c) => path.startsWith(c.href));
 
 export function Header({ pathname: initialPath = '', onlineBooking = false }: { pathname?: string; onlineBooking?: boolean }) {
   const cta = onlineBooking ? { href: '/book', label: 'Book online' } : { href: '/contact', label: 'Enquire now' };
@@ -31,16 +33,36 @@ export function Header({ pathname: initialPath = '', onlineBooking = false }: { 
         </Link>
         <nav aria-label="Main" className="hidden items-center gap-0.5 xl:flex">
           {NAV.map((n) => {
-            const active = path.startsWith(n.href);
+            const active = isActive(n, path);
+            const link = `whitespace-nowrap rounded px-2.5 py-2 font-display text-[15px] font-semibold uppercase tracking-wider transition ${active ? 'text-royal' : 'text-charcoal/75 hover:text-royal'}`;
+            if (!n.children) {
+              return (
+                <Link key={n.href} href={n.href} className={link} aria-current={path.startsWith(n.href) ? 'page' : undefined}>
+                  {n.label}
+                </Link>
+              );
+            }
+            // Clinic: a hover / keyboard-focus menu of the clinic's pages.
             return (
-              <Link
-                key={n.href}
-                href={n.href}
-                className={`whitespace-nowrap rounded px-2.5 py-2 font-display text-[15px] font-semibold uppercase tracking-wider transition ${active ? 'text-royal' : 'text-charcoal/75 hover:text-royal'}`}
-                aria-current={active ? 'page' : undefined}
-              >
-                {n.label}
-              </Link>
+              <div key={n.href} className="group relative">
+                <Link href={n.href} className={`${link} inline-flex items-center gap-1`} aria-current={path.startsWith(n.href) ? 'page' : undefined} aria-haspopup="true">
+                  {n.label}
+                  <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" className="transition group-hover:rotate-180 group-focus-within:rotate-180">
+                    <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  </svg>
+                </Link>
+                <div className="invisible absolute left-0 top-full z-50 pt-2 opacity-0 transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                  <ul className="w-72 overflow-hidden rounded-lg border border-line bg-white py-2 shadow-[0_18px_40px_-20px_rgba(16,24,32,0.45)]">
+                    {n.children.map((c) => (
+                      <li key={c.href}>
+                        <Link href={c.href} className={`block px-4 py-2.5 text-[15px] transition hover:bg-mist hover:text-royal ${path === c.href ? 'font-semibold text-royal' : 'text-charcoal'}`}>
+                          {c.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             );
           })}
         </nav>
@@ -66,10 +88,23 @@ export function Header({ pathname: initialPath = '', onlineBooking = false }: { 
       {open && (
         <nav id="mobile-nav" aria-label="Mobile" className="h-[calc(100dvh-84px)] overflow-y-auto border-t border-line bg-white xl:hidden">
           <div className="container-x flex flex-col py-6">
-            {[{ href: '/', label: 'Home' }, ...NAV, { href: '/contact', label: 'Contact' }].map((n) => (
-              <Link key={n.href} href={n.href} onClick={() => setOpen(false)} className="border-b border-line py-4 font-display text-2xl font-bold uppercase tracking-wide text-charcoal hover:text-royal">
-                {n.label}
-              </Link>
+            {[{ href: '/', label: 'Home' } as NavItem, ...NAV, { href: '/contact', label: 'Contact' }].map((n) => (
+              <div key={n.href} className="border-b border-line py-4">
+                <Link href={n.href} onClick={() => setOpen(false)} className="font-display text-2xl font-bold uppercase tracking-wide text-charcoal hover:text-royal">
+                  {n.label}
+                </Link>
+                {n.children && (
+                  <ul className="mt-3 space-y-2 border-l-2 border-sky pl-4">
+                    {n.children.filter((c) => c.href !== n.href).map((c) => (
+                      <li key={c.href}>
+                        <Link href={c.href} onClick={() => setOpen(false)} className="text-base text-charcoal/80 hover:text-royal">
+                          {c.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             ))}
             <Link href={cta.href} onClick={() => setOpen(false)} className="btn-primary mt-8">
               {cta.label}

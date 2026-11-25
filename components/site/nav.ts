@@ -1,11 +1,16 @@
-export const NAV = [
-  { href: '/sports-performance', label: 'Sports Performance' },
-  { href: '/performance-academy', label: 'Academy' },
-  { href: '/rehabilitation', label: 'Rehabilitation' },
-  { href: '/recovery-remedial-massage', label: 'Recovery & Massage' },
-  { href: '/performance-testing', label: 'Testing' },
+import { CLINIC_PAGES, DIVISIONS } from '@/lib/site/divisions';
+
+export interface NavItem {
+  href: string;
+  label: string;
+  children?: readonly { href: string; label: string }[];
+}
+
+/** Main menu: ASPARC's four areas of business, then About. */
+export const NAV: NavItem[] = [
+  ...DIVISIONS.map((d) => ({ href: d.href, label: d.nav, ...(d.key === 'clinic' ? { children: [{ href: '/clinic', label: 'Clinic overview' }, ...CLINIC_PAGES] } : {}) })),
   { href: '/about', label: 'About' },
-] as const;
+];
 
 export const LEGAL = [
   { href: '/privacy-policy', label: 'Privacy Policy' },

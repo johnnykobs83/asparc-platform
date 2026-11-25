@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import { ACADEMY, ACADEMY_GROUPS } from '@/lib/academy/config';
 import { BRAND, IMAGES } from '@/lib/brand';
+import { DIVISIONS } from '@/lib/site/divisions';
 import type { PublicSiteData } from '@/lib/kb/service';
-import { Check, CtaBand, DraftBadge, FeaturedOffer, ImageSlot, NumberedCard, Section, SectionHeading, featuredServices, priceText } from '../ui';
-
-const AUDIENCES = ['Professional & semi-pro athletes', 'Football (soccer) players', 'Junior & youth athletes', 'Community sporting clubs', 'Adults building strength & fitness'];
+import { Check, CtaBand, DraftBadge, FeaturedOffer, ImageSlot, Section, SectionHeading, featuredServices, priceText } from '../ui';
+import { DivisionGrid } from './DivisionPages';
 
 const PILLARS = [
   { word: 'Perform', text: 'Strength, speed, power and conditioning built for your sport.' },
@@ -41,10 +41,12 @@ export function HomeView({ site }: { site: PublicSiteData }) {
         </div>
         <div className="relative border-t border-white/10 bg-charcoal/60 backdrop-blur">
           <ul className="container-x flex flex-wrap gap-x-8 gap-y-2 py-5 font-display text-sm font-semibold uppercase tracking-[0.14em] text-white/70">
-            {AUDIENCES.map((a) => (
-              <li key={a} className="flex items-center gap-3">
-                <span className="h-1.5 w-1.5 rotate-45 bg-sky" aria-hidden="true" />
-                {a}
+            {DIVISIONS.map((d) => (
+              <li key={d.key}>
+                <Link href={d.href} className="flex items-center gap-3 transition hover:text-white">
+                  <span className="h-1.5 w-1.5 rotate-45 bg-sky" aria-hidden="true" />
+                  {d.name}
+                </Link>
               </li>
             ))}
           </ul>
@@ -78,25 +80,10 @@ export function HomeView({ site }: { site: PublicSiteData }) {
         </div>
       </Section>
 
-      {/* SERVICES */}
+      {/* WHAT WE DO – the four areas of ASPARC */}
       <Section tone="mist">
-        <SectionHeading eyebrow="Services" title="Built around the athlete" intro="Every program starts with what you need – whether that’s your first strength program, a pre-season block, or the final stage of returning from injury." />
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <NumberedCard n="01" title="Sports Performance" text="Strength & conditioning, speed, agility, power and football-specific physical preparation." href="/sports-performance" />
-          <NumberedCard n="02" title="Football Performance Academy" text="Small-group athletic development for footballers aged 8–16, six days a week. Now enrolling for Term 1 2027." href="/performance-academy" />
-          <NumberedCard n="03" title="Rehabilitation" text="Exercise-based return-to-performance training that works alongside your treating practitioner." href="/rehabilitation" />
-          <NumberedCard n="04" title="Recovery & Massage" text="Remedial massage to support recovery, training load and performance." href="/recovery-remedial-massage" />
-          <NumberedCard n="05" title="Performance Testing" text="Athletic profiling to identify strengths, gaps and training priorities." href="/performance-testing" />
-          <Link href="/contact?form=club" className="group relative flex flex-col justify-between overflow-hidden rounded-[var(--radius-card)] bg-royal p-7 text-white">
-            <div className="speed-lines absolute inset-0" aria-hidden="true" />
-            <div className="relative">
-              <p className="eyebrow text-sky-100">For clubs</p>
-              <h3 className="mt-4 text-2xl uppercase leading-tight">Club partnerships</h3>
-              <p className="mt-3 text-[15px] leading-relaxed text-white/80">Physical preparation support for community sporting clubs and their players.</p>
-            </div>
-            <span className="relative mt-6 font-display text-sm font-semibold uppercase tracking-wider">Talk to us →</span>
-          </Link>
-        </div>
+        <SectionHeading eyebrow="What we do" title={<>Four ways <span className="text-royal">we work with you</span></>} intro="Whether you run a club, train as an individual, have a young footballer at home or need expert advice – there’s a part of ASPARC built for you." />
+        <DivisionGrid />
       </Section>
 
       {/* ACADEMY */}
