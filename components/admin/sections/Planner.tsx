@@ -625,8 +625,47 @@ const REPEATS: [string, string, number][] = [
   ['10', 'Every week for 10 weeks (a school term)', 10],
   ['12', 'Every week for 12 weeks', 12],
   ['26', 'Every week for 6 months', 26],
+  ['52', 'Every week for a year', 52],
   ['until', 'Every week until a date…', 0],
 ];
+const MAX_AT_ONCE = 300;
+
+/** Day buttons + repeat menu, used when adding a job and when repeating one that exists. */
+function RepeatPicker({ date, days, setDays, repeat, setRepeat, until, setUntil, count, first, last, noun }: { date: string; days: number[]; setDays: (d: number[]) => void; repeat: string; setRepeat: (r: string) => void; until: string; setUntil: (u: string) => void; count: number; first?: string; last?: string; noun: string }) {
+  return (
+    <>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Days of the week">
+        {WEEKDAYS.map(([n, l]) => {
+          const on = days.includes(n);
+          return (
+            <button
+              key={n}
+              type="button"
+              aria-pressed={on}
+              onClick={() => setDays(on ? (days.length > 1 ? days.filter((d) => d !== n) : days) : [...days, n])}
+              className={cx('min-h-[40px] min-w-[48px] rounded-md border px-2 text-sm font-semibold', on ? 'border-royal bg-royal text-white' : 'border-line bg-white text-charcoal hover:border-royal')}
+            >
+              {l}
+            </button>
+          );
+        })}
+        <Button size="sm" variant="ghost" onClick={() => setDays([1, 2, 3, 4, 5])}>Weekdays</Button>
+      </div>
+      <div className={cx('mt-3 grid gap-2', repeat === 'until' && 'sm:grid-cols-2')}>
+        <select aria-label="Repeat" className="field" value={repeat} onChange={(e) => setRepeat(e.target.value)}>
+          {REPEATS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        {repeat === 'until' && <input aria-label="Repeat until" type="date" className="field" min={date} max={addDays(date, 730)} value={until} onChange={(e) => setUntil(e.target.value)} />}
+      </div>
+      <p className={cx('mt-2 text-xs', count > MAX_AT_ONCE ? 'font-semibold text-danger' : 'text-muted')}>
+        {count > MAX_AT_ONCE
+          ? `That's ${count} jobs – the most at once is ${MAX_AT_ONCE}.`
+          : `${noun} ${count} job${count === 1 ? '' : 's'}${count && first ? `: ${dayLabel(first)}${last && last !== first ? ` to ${dayLabel(last)}${last.slice(0, 4) !== first.slice(0, 4) ? ` ${last.slice(0, 4)}` : ''}` : ''}` : ''}.`}
+        {count > 1 && ' They stay linked, so you can change or delete the rest of them in one go later.'}
+      </p>
+    </>
+  );
+}
 
 function JobDrawer({ week, initial, isNew, onClose, onSaved }: { week: Week; initial: Partial<Job> & { date: string }; isNew: boolean; onClose: () => void; onSaved: (msg: string) => void }) {
   const [title, setTitle] = useState(initial.title ?? '');
@@ -644,10 +683,26 @@ function JobDrawer({ week, initial, isNew, onClose, onSaved }: { week: Week; ini
   const [days, setDays] = useState<number[]>(() => [isoDow(initial.date)]);
   const [repeat, setRepeat] = useState('none');
   const [until, setUntil] = useState(() => addDays(initial.date, 7 * 10));
+  // For a job that exists, "Repeat" starts from its own day.
   const [scope, setScope] = useState<'one' | 'following'>('one');
   const inSeries = !isNew && Boolean(initial.series_id);
   const repeatUntil = repeat === 'none' ? null : repeat === 'until' ? until : addDays(mondayOf(date), 7 * Number(repeat) - 1);
   const preview = isNew ? previewDates(date, days, repeatUntil) : [];
+  const [repeatOpen, setRepeatOpen] = useState(false);
+  const extra = !isNew && repeatOpen && repeatUntil ? previewDates(initial.date, days, repeatUntil).filter((d) => d !== initial.date) : [];
+
+  async function repeatExisting() {
+    if (!repeatUntil) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api<{ created: number }>(`/api/admin/planner/jobs/${initial.id}/repeat`, { body: { days, repeat_until: repeatUntil } });
+      onSaved(`${r.created} job${r.created === 1 ? '' : 's'} added${week.published_at ? ' – send updates so staff know' : ''}`);
+    } catch (e) {
+      setErr(e instanceof ApiError && e.fields ? Object.values(e.fields).join(' · ') : e instanceof Error ? e.message : 'Could not repeat');
+      setBusy(false);
+    }
+  }
   const active = week.staff.filter((s) => s.active);
   const free = active.filter((s) => !people.some((p) => p.staff_id === s.id));
   const issues = (initial.issues ?? []) as Issue[];
@@ -744,35 +799,24 @@ function JobDrawer({ week, initial, isNew, onClose, onSaved }: { week: Week; ini
         {isNew && (
           <fieldset className="rounded-lg border border-line bg-white p-3">
             <legend className="px-1 text-sm font-medium text-charcoal">Days and repeat</legend>
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Days of the week">
-              {WEEKDAYS.map(([n, l]) => {
-                const on = days.includes(n);
-                return (
-                  <button
-                    key={n}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => setDays(on ? (days.length > 1 ? days.filter((d) => d !== n) : days) : [...days, n])}
-                    className={cx('min-h-[40px] min-w-[48px] rounded-md border px-2 text-sm font-semibold', on ? 'border-royal bg-royal text-white' : 'border-line bg-white text-charcoal hover:border-royal')}
-                  >
-                    {l}
-                  </button>
-                );
-              })}
-              <Button size="sm" variant="ghost" onClick={() => setDays([1, 2, 3, 4, 5])}>Weekdays</Button>
-            </div>
-            <div className={cx('mt-3 grid gap-2', repeat === 'until' && 'sm:grid-cols-2')}>
-              <select aria-label="Repeat" className="field" value={repeat} onChange={(e) => setRepeat(e.target.value)}>
-                {REPEATS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-              {repeat === 'until' && <input aria-label="Repeat until" type="date" className="field" min={date} value={until} onChange={(e) => setUntil(e.target.value)} />}
-            </div>
-            <p className={cx('mt-2 text-xs', preview.length > 200 ? 'font-semibold text-danger' : 'text-muted')}>
-              {preview.length > 200
-                ? `That's ${preview.length} jobs – the most at once is 200.`
-                : `Adds ${preview.length} job${preview.length === 1 ? '' : 's'}${preview.length ? `: ${dayLabel(preview[0])}${preview.length > 1 ? ` to ${dayLabel(preview[preview.length - 1])}` : ''}` : ''}.`}
-              {preview.length > 1 && ' They stay linked, so you can change or delete the rest of them in one go later.'}
-            </p>
+            <RepeatPicker date={date} days={days} setDays={setDays} repeat={repeat} setRepeat={setRepeat} until={until} setUntil={setUntil} count={preview.length} first={preview[0]} last={preview[preview.length - 1]} noun="Adds" />
+          </fieldset>
+        )}
+        {!isNew && scope === 'one' && (
+          <fieldset className="rounded-lg border border-line bg-white p-3">
+            <legend className="px-1 text-sm font-medium text-charcoal">Repeat this job</legend>
+            {!repeatOpen ? (
+              <Button size="sm" variant="secondary" onClick={() => { setRepeatOpen(true); setRepeat('until'); }}>↻ Repeat on more days or weeks…</Button>
+            ) : (
+              <>
+                <RepeatPicker date={initial.date} days={days} setDays={setDays} repeat={repeat} setRepeat={setRepeat} until={until} setUntil={setUntil} count={extra.length} first={extra[0]} last={extra[extra.length - 1]} noun="Adds" />
+                <p className="mt-1 text-xs text-muted">Copies keep this job&apos;s times, place, client, notes and people (covers aren&apos;t copied). Save any other changes first.</p>
+                <div className="mt-2 flex gap-2">
+                  <Button size="sm" onClick={repeatExisting} disabled={busy || !extra.length || extra.length > MAX_AT_ONCE}>{busy ? 'Adding…' : `Add ${extra.length} job${extra.length === 1 ? '' : 's'}`}</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setRepeatOpen(false)}>Cancel</Button>
+                </div>
+              </>
+            )}
           </fieldset>
         )}
         {inSeries && (
@@ -828,7 +872,7 @@ function JobDrawer({ week, initial, isNew, onClose, onSaved }: { week: Week; ini
           {!isNew && <Button variant="danger" onClick={remove} disabled={busy}>{confirmDelete ? 'Tap again to delete' : scope === 'following' ? 'Delete this and later' : 'Delete job'}</Button>}
           <div className="ml-auto flex gap-2">
             <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={busy || preview.length > 200}>{busy ? 'Saving…' : isNew ? (preview.length > 1 ? `Add ${preview.length} jobs` : 'Add job') : scope === 'following' ? 'Save this and later' : 'Save'}</Button>
+            <Button type="submit" disabled={busy || preview.length > MAX_AT_ONCE}>{busy ? 'Saving…' : isNew ? (preview.length > 1 ? `Add ${preview.length} jobs` : 'Add job') : scope === 'following' ? 'Save this and later' : 'Save'}</Button>
           </div>
         </div>
         {week.published_at && <p className="text-xs text-muted">This week has been sent. Changes are collected and go out when you press Send updates.</p>}

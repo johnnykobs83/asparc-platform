@@ -3,6 +3,7 @@ import { beforeEach, describe, it } from 'node:test';
 import { GET as calendarGET } from '../app/api/calendar/staff/[token]/route';
 import { POST as copyPOST } from '../app/api/admin/planner/copy/route';
 import { PATCH as jobPATCH, DELETE as jobDELETE } from '../app/api/admin/planner/jobs/[id]/route';
+import { POST as repeatPOST } from '../app/api/admin/planner/jobs/[id]/repeat/route';
 import { POST as jobPOST } from '../app/api/admin/planner/jobs/route';
 import { POST as leavePOST } from '../app/api/admin/planner/leave/route';
 import { POST as locationPOST } from '../app/api/admin/planner/locations/route';
@@ -137,7 +138,8 @@ describe('Staff planner – several days and repeating weeks', () => {
     assert.deepEqual(expandDates(mon, [2, 4], '2026-12-17'), ['2026-12-01', '2026-12-03', '2026-12-08', '2026-12-10', '2026-12-15', '2026-12-17']);
     assert.deepEqual(expandDates(mon, null, '2026-12-21'), ['2026-11-30', '2026-12-07', '2026-12-14', '2026-12-21'], 'same weekday every week');
     assert.equal(expandDates(mon, [1, 2, 3, 4, 5], '2027-02-26').length, 65, 'a school term of weekdays');
-    assert.throws(() => expandDates(mon, null, '2028-01-01'), /a year at most/);
+    assert.equal(expandDates('2026-11-23', null, '2027-12-12').length, 55, 'every Monday until 12 Dec 2027');
+    assert.throws(() => expandDates(mon, null, '2029-01-01'), /two years at most/);
   });
 
   it('adds a repeating job as one series, and changes or deletes "this and following"', async () => {
@@ -176,11 +178,31 @@ describe('Staff planner – several days and repeating weeks', () => {
     assert.equal((await db().list('planner_assignments')).length, 6);
   });
 
-  it('refuses to add more than 200 jobs at once', async () => {
+  it('repeats a job that already exists, e.g. every Monday until 12 Dec 2027', async () => {
+    const { sam, pri, ground } = await setup();
+    const job = (await addJob({ location_id: ground.id, date: day(0), start_minutes: 1080, end_minutes: 1170, notes: 'Bring cones', staff: [{ staff_id: pri.id, covering_for_staff_id: sam.id }] })).body.job;
+    const until = addDays(WEEK, 7 * 60);
+    const call = async (body: unknown, role: Role = 'owner') => json(await repeatPOST(req(`/api/admin/planner/jobs/${job.id}/repeat`, { body, cookie: await adminCookie(role) }), ctx(job.id)));
+    assert.equal((await call({ repeat_until: until }, 'staff')).status, 403);
+    const r = await call({ repeat_until: until });
+    assert.equal(r.status, 201);
+    assert.equal(r.body.created, 60, '60 more Mondays');
+    const all = await db().list('planner_jobs', { orderBy: 'starts_at', ascending: true });
+    assert.equal(all.length, 61);
+    assert.ok(all.every((j) => j.series_id === all[0].series_id && j.series_id), 'the original joins the series');
+    const later = (await getWeek('owner', addDays(WEEK, 7 * 30))).body.jobs[0];
+    assert.deepEqual([later.start_minutes, later.end_minutes, later.notes, later.assignments[0].staff_id, later.assignments[0].covering_for_staff_id], [1080, 1170, 'Bring cones', sam.id, null], 'covers are not copied');
+    // Adding Wednesdays to the same series skips the Mondays that are already there.
+    const more = await call({ days: [1, 3], repeat_until: addDays(WEEK, 13) });
+    assert.equal(more.body.created, 2, 'just the two Wednesdays');
+    assert.equal((await call({ repeat_until: day(0) })).status, 422, 'nothing new to add');
+  });
+
+  it('refuses to add more than 300 jobs at once', async () => {
     const { sam, ground } = await setup();
-    const r = await addJob({ location_id: ground.id, date: day(0), start_minutes: 390, end_minutes: 480, staff: [{ staff_id: sam.id }], days: [1, 2, 3, 4, 5, 6, 7], repeat_until: addDays(WEEK, 7 * 30) });
+    const r = await addJob({ location_id: ground.id, date: day(0), start_minutes: 390, end_minutes: 480, staff: [{ staff_id: sam.id }], days: [1, 2, 3, 4, 5, 6, 7], repeat_until: addDays(WEEK, 7 * 50) });
     assert.equal(r.status, 422);
-    assert.match(r.body.error, /the most at once is 200/);
+    assert.match(r.body.error, /the most at once is 300/);
     assert.equal((await db().list('planner_jobs')).length, 0);
   });
 });

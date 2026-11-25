@@ -255,7 +255,8 @@ const times = (date: string, start: number, end: number) => {
   return { starts_at: starts.toISOString(), ends_at: ends.toISOString() };
 };
 
-export const MAX_JOBS_AT_ONCE = 200;
+export const MAX_JOBS_AT_ONCE = 300;
+export const MAX_REPEAT_DAYS = 731; // two years
 
 /** The dates a new job goes on: the chosen weekdays of its week, then every week until repeat_until. */
 export function expandDates(date: string, days?: number[] | null, repeatUntil?: string | null): string[] {
@@ -263,7 +264,7 @@ export function expandDates(date: string, days?: number[] | null, repeatUntil?: 
   const weekdays = [...new Set(days?.length ? days : [isoDow])].sort((a, b) => a - b);
   const monday = mondayOf(date);
   const last = repeatUntil && repeatUntil >= date ? repeatUntil : addDays(monday, 6);
-  if (Date.parse(`${last}T00:00:00Z`) - Date.parse(`${date}T00:00:00Z`) > 371 * 86400000) throw new HttpError(422, 'Repeat for a year at most');
+  if (Date.parse(`${last}T00:00:00Z`) - Date.parse(`${date}T00:00:00Z`) > MAX_REPEAT_DAYS * 86400000) throw new HttpError(422, 'Repeat for two years at most');
   const out: string[] = [];
   for (let wk = monday; wk <= last; wk = addDays(wk, 7)) for (const d of weekdays) {
     const day = addDays(wk, d - 1);
@@ -302,6 +303,49 @@ export async function createJob(input: z.infer<typeof JobInput>, actorId: string
     first ??= job;
   }
   return Object.assign(first!, { created: dates.length });
+}
+
+export const RepeatInput = z.object({
+  days: z.array(z.number().int().min(1).max(7)).max(7).optional(),
+  repeat_until: ymd,
+});
+
+/**
+ * Repeats a job that already exists: copies it onto the chosen weekdays (default: its own day)
+ * every week until repeat_until. The copies join its series (one is started if needed), so
+ * "this one and all later ones" works on them. Covers are not copied: the regular person is on.
+ */
+export async function repeatJob(id: string, input: z.infer<typeof RepeatInput>, actorId: string | null) {
+  const repo = db();
+  const job = await repo.get('planner_jobs', id);
+  if (!job || job.status !== 'scheduled') throw new HttpError(404, 'Job not found');
+  const s = melbourneLocal(job.starts_at);
+  const e = melbourneLocal(job.ends_at);
+  if (input.repeat_until < s.ymd) throw new HttpError(422, 'Pick an end date after this job');
+  const taken = new Set(
+    job.series_id
+      ? (await repo.list('planner_jobs', { eq: { series_id: job.series_id }, limit: 1000 })).filter((j) => j.status === 'scheduled').map((j) => melbourneLocal(j.starts_at).ymd)
+      : [s.ymd],
+  );
+  const dates = expandDates(s.ymd, input.days?.length ? input.days : null, input.repeat_until).filter((d) => !taken.has(d) && d !== s.ymd);
+  if (!dates.length) throw new HttpError(422, 'Nothing new to add – pick more days or a later end date');
+  if (dates.length > MAX_JOBS_AT_ONCE) throw new HttpError(422, `That would add ${dates.length} jobs – the most at once is ${MAX_JOBS_AT_ONCE}. Pick fewer days or an earlier end date.`);
+  const seriesId = job.series_id ?? randomUUID();
+  if (!job.series_id) await repo.update('planner_jobs', job.id, { series_id: seriesId });
+  const people = [...new Set((await repo.list('planner_assignments', { eq: { job_id: job.id } })).map((a) => a.covering_for_staff_id ?? a.staff_id))];
+  const template = {
+    title: job.title,
+    job_type: job.job_type,
+    location_id: job.location_id,
+    client_id: job.client_id,
+    notes: job.notes,
+    date: s.ymd,
+    start_minutes: s.minutes,
+    end_minutes: e.ymd === s.ymd ? e.minutes : 1440,
+    staff: people.map((staff_id) => ({ staff_id })),
+  } as z.infer<typeof JobInput>;
+  for (const d of dates) await insertJob(template, d, seriesId, actorId);
+  return { created: dates.length, first: dates[0], last: dates[dates.length - 1] };
 }
 
 /** The jobs a change or delete applies to: just this one, or this one and the later ones in its series. */
