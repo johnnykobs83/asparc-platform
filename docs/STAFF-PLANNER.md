@@ -7,7 +7,7 @@ Added 25 Nov 2026 on branch `feature/staff-planner`.
 | Dashboard section | Who sees it | What it does |
 |---|---|---|
 | **Staff Planner** | Everyone; owners and managers can edit | A week of job cards per person (or per place) and a calendar view. Drag to move, click to edit, arrange cover. Flags double bookings, leave and too little travel time between venues. **Publish & email staff** sends each person their week – to everyone, one person or a few you tick; after that, **Send updates** emails the people who still need it, and **Send schedule** resends to anyone you pick. Copy last week as a starting point. The **Staff & places** tab manages people, venues and leave. |
-| **My Week** | Everyone | The signed-in person's own jobs, with map links, a **Got it** button and their personal calendar link. Owners and managers can look at anyone's week. |
+| **My Week** | Everyone | The signed-in person's week as a **weekly calendar** (Mon–Sun time grid; day-by-day on phones) or a list, with map links, a **Got it** button and their personal calendar link. Owners and managers can look at anyone's week. **Share this week** sends a read-only link (`/schedule/<token>`) by the phone's share sheet, WhatsApp, text or email, or copies the week as text. The link shows published weeks only – times, jobs and venues, never access codes, notes, colleagues or clients – and "Make a new calendar link" cuts off every shared link. |
 | **Clients & Billing** | **Owner only** | Each club or client's agreement, invoices, what's paid, outstanding and overdue (aged), and the sessions delivered from the planner. Managers and staff don't see it in the menu, the API answers 404, and the database gives them no rows. |
 
 ## Reminders

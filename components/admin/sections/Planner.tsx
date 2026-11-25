@@ -3,6 +3,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError, getParam, setParam, useApi } from '../api';
 import { Badge, Button, Drawer, Empty, ErrorNote, Loading, Notice, PageHeader, Panel, cx, useToast } from '../ui';
+import { PersonWeek, type WeekItem } from '../../shared/PersonWeek';
+import { weekAsText } from '../../shared/week-format';
 
 // ------------------------------------------------------------------ types (mirror lib/planner/service.ts)
 interface Assignment {
@@ -1326,11 +1328,16 @@ interface MyWeekData extends Partial<Week> {
   staff_options?: { id: string; full_name: string }[];
   me?: { id: string; full_name: string; role_title: string | null };
   calendar_url?: string | null;
+  share_url?: string | null;
 }
 
 export function MyWeekSection() {
   const [week, setWeek] = useWeekParam();
   const [who, setWho] = useState<string>('');
+  const [view, setView] = useState<'calendar' | 'cards'>('calendar');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [showCal, setShowCal] = useState(false);
   const url = `/api/admin/planner/my-week?week=${week}${who ? `&staff=${who}` : ''}`;
   const data = useApi<MyWeekData>(url);
   const { toast, toastNode } = useToast();
@@ -1340,7 +1347,7 @@ export function MyWeekSection() {
     } catch {
       /* ignore */
     }
-  }, false);
+  }, sharing || Boolean(openId));
 
   const d = data.data;
   const jobs = useMemo(() => [...(d?.jobs ?? [])].sort((a, b) => a.starts_at.localeCompare(b.starts_at)), [d?.jobs]);
@@ -1368,22 +1375,97 @@ export function MyWeekSection() {
       toast(e instanceof Error ? e.message : 'Could not confirm', 'err');
     }
   }
-  async function copy(text: string) {
+  async function copy(text: string, what = 'Link copied') {
     try {
       await navigator.clipboard.writeText(text);
-      toast('Calendar link copied');
+      toast(what);
     } catch {
-      toast('Copy failed – press and hold the link to copy it', 'err');
+      toast('Copy failed – press and hold to copy it', 'err');
     }
   }
   const unconfirmed = d.is_me ? jobs.filter((j) => j.assignments.some((a) => a.staff_id === d.me?.id && !a.acknowledged_at)).length : 0;
+  const locOf = (j: Job) => d.locations?.find((x) => x.id === j.location_id);
+  const items: WeekItem[] = jobs.map((j) => {
+    const l = locOf(j);
+    const mine = j.assignments.find((a) => a.staff_id === d.me?.id);
+    return {
+      id: j.id,
+      date: j.date,
+      start: j.start_minutes,
+      end: j.end_minutes,
+      title: j.title,
+      place: l?.name ?? null,
+      address: l?.address ?? null,
+      colour: l?.colour ?? null,
+      badge: mine?.covering_for_staff_id ? { text: `Covering ${staffName(mine.covering_for_staff_id)}`, tone: 'amber' as const } : d.is_me && mine?.acknowledged_at ? { text: 'Confirmed ✓', tone: 'green' as const } : null,
+    };
+  });
+  const openJob = jobs.find((j) => j.id === openId) ?? null;
+  const who_ = d.is_me ? 'you' : d.me?.full_name ?? 'them';
+
+  /** One job's full details – same for the calendar and the cards. */
+  const jobCard = (j: Job) => {
+    const l = locOf(j);
+    const mine = j.assignments.find((a) => a.staff_id === d.me?.id);
+    const others = j.assignments.filter((a) => a.staff_id !== d.me?.id).map((a) => staffName(a.staff_id));
+    return (
+      <>
+        <p className="text-sm font-semibold text-royal">{dayLabel(j.date, true)} · {clock(j.start_minutes)}–{clock(j.end_minutes)}</p>
+        <h3 className="mt-0.5 font-display text-2xl font-bold uppercase leading-tight">{j.title}</h3>
+        <p className="mt-1 text-sm">
+          <strong>{l?.name}</strong>
+          {l?.address && (
+            <>
+              <br />
+              <a className="text-royal underline" href={mapsUrl(l.address)} target="_blank" rel="noopener">{l.address}</a>
+            </>
+          )}
+        </p>
+        {l?.access_notes && <p className="mt-1 text-sm text-muted">Access: {l.access_notes}</p>}
+        {mine?.covering_for_staff_id && <p className="mt-2"><Badge tone="amber">Covering {staffName(mine.covering_for_staff_id)}</Badge> <span className="text-sm text-muted">{mine.cover_reason}</span></p>}
+        {others.length > 0 && <p className="mt-1 text-sm text-muted">With {others.join(', ')}</p>}
+        {j.notes && <p className="mt-1 whitespace-pre-line text-sm text-muted">{j.notes}</p>}
+        {d.is_me && (
+          <div className="mt-3">
+            {mine?.acknowledged_at ? <Badge tone="green">Confirmed ✓</Badge> : <Button size="sm" onClick={() => confirm({ job_id: j.id })}>Got it</Button>}
+          </div>
+        )}
+        {!d.published_at && <p className="mt-2 text-xs text-muted">Draft – not sent yet, may change.</p>}
+      </>
+    );
+  };
 
   return (
     <>
-      <PageHeader title="My Week" description={d.linked ? `Where ${d.is_me ? 'you are' : `${d.me?.full_name} is`} working, day by day.` : undefined} actions={picker} />
+      <PageHeader
+        title="My Week"
+        description={d.linked ? `Where ${d.is_me ? 'you are' : `${d.me?.full_name} is`} working, day by day.` : undefined}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {picker}
+            {d.linked && d.share_url && <Button onClick={() => setSharing(true)}>Share this week</Button>}
+          </div>
+        }
+      />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <WeekNav week={week} onChange={setWeek} />
-        {d.is_me && unconfirmed > 0 && <Button onClick={() => confirm({ week_start: week })}>Got it – confirm my week</Button>}
+        <div className="flex flex-wrap items-center gap-2">
+          {d.is_me && unconfirmed > 0 && <Button onClick={() => confirm({ week_start: week })}>Got it – confirm my week</Button>}
+          {d.linked && (
+            <div className="inline-flex overflow-hidden rounded-md border border-line bg-white" role="tablist" aria-label="My Week view">
+              {(
+                [
+                  ['calendar', 'Calendar'],
+                  ['cards', 'List'],
+                ] as const
+              ).map(([k, t]) => (
+                <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)} className={cx('px-3 py-1.5 text-sm font-medium', view === k ? 'bg-royal text-white' : 'text-charcoal hover:bg-mist')}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       {!d.linked ? (
         <Empty title="Your login isn’t linked to a staff member yet">
@@ -1391,55 +1473,95 @@ export function MyWeekSection() {
         </Empty>
       ) : (
         <>
-          {d.calendar_url && (
-            <Panel className="mb-4" title="Put your jobs in your phone’s calendar">
-              <p className="text-sm text-muted">Subscribe once and every job and change appears by itself (updates every hour or so). Google Calendar: Other calendars › + › From URL. iPhone: Settings › Calendar › Accounts › Add Account › Other › Add Subscribed Calendar.</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <code className="min-w-0 flex-1 truncate rounded bg-mist px-2 py-1.5 text-xs">{d.calendar_url}</code>
-                <Button size="sm" variant="secondary" onClick={() => copy(d.calendar_url!)}>Copy link</Button>
-              </div>
-              <p className="mt-2 text-xs text-muted">Keep this link private. Ask for a new one if your phone is lost.</p>
-            </Panel>
-          )}
-          {!jobs.length ? (
-            <Empty title="No jobs this week">Nothing has been planned for {d.is_me ? 'you' : d.me?.full_name} this week{d.published_at ? '' : ' yet'}.</Empty>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {jobs.map((j) => {
-                const l = d.locations?.find((x) => x.id === j.location_id);
-                const mine = j.assignments.find((a) => a.staff_id === d.me?.id);
-                const others = j.assignments.filter((a) => a.staff_id !== d.me?.id).map((a) => staffName(a.staff_id));
-                return (
-                  <article key={j.id} className="rounded-xl border border-line border-t-[5px] bg-white p-4" style={{ borderTopColor: l?.colour }}>
-                    <p className="text-sm font-semibold text-royal">{dayLabel(j.date, true)} · {clock(j.start_minutes)}–{clock(j.end_minutes)}</p>
-                    <h3 className="mt-0.5 font-display text-2xl font-bold uppercase leading-tight">{j.title}</h3>
-                    <p className="mt-1 text-sm">
-                      <strong>{l?.name}</strong>
-                      {l?.address && (
-                        <>
-                          <br />
-                          <a className="text-royal underline" href={mapsUrl(l.address)} target="_blank" rel="noopener">{l.address}</a>
-                        </>
-                      )}
-                    </p>
-                    {l?.access_notes && <p className="mt-1 text-sm text-muted">Access: {l.access_notes}</p>}
-                    {mine?.covering_for_staff_id && <p className="mt-2"><Badge tone="amber">Covering {staffName(mine.covering_for_staff_id)}</Badge> <span className="text-sm text-muted">{mine.cover_reason}</span></p>}
-                    {others.length > 0 && <p className="mt-1 text-sm text-muted">With {others.join(', ')}</p>}
-                    {j.notes && <p className="mt-1 whitespace-pre-line text-sm text-muted">{j.notes}</p>}
-                    {d.is_me && (
-                      <div className="mt-3">
-                        {mine?.acknowledged_at ? <Badge tone="green">Confirmed ✓</Badge> : <Button size="sm" onClick={() => confirm({ job_id: j.id })}>Got it</Button>}
-                      </div>
-                    )}
-                    {!d.published_at && <p className="mt-2 text-xs text-muted">Draft – not sent yet, may change.</p>}
+          {!d.published_at && jobs.length > 0 && <Notice>This week is still a draft – it hasn&apos;t been sent out and may change.</Notice>}
+          <div className="mt-3">
+            {view === 'calendar' ? (
+              <PersonWeek days={d.days ?? []} items={items} today={todayYmd()} onOpen={setOpenId} emptyText="Not working" />
+            ) : !jobs.length ? (
+              <Empty title="No jobs this week">Nothing has been planned for {who_} this week{d.published_at ? '' : ' yet'}.</Empty>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {jobs.map((j) => (
+                  <article key={j.id} className="rounded-xl border border-line border-t-[5px] bg-white p-4" style={{ borderTopColor: locOf(j)?.colour }}>
+                    {jobCard(j)}
                   </article>
-                );
-              })}
+                ))}
+              </div>
+            )}
+          </div>
+          {d.calendar_url && (
+            <div className="mt-5">
+              <button type="button" className="text-sm text-royal underline" onClick={() => setShowCal((v) => !v)}>
+                {showCal ? 'Hide' : 'Put these jobs in your phone’s calendar'}
+              </button>
+              {showCal && (
+                <Panel className="mt-2" title="Subscribe in your phone’s calendar">
+                  <p className="text-sm text-muted">Subscribe once and every job and change appears by itself (updates every hour or so). Google Calendar: Other calendars › + › From URL. iPhone: Settings › Calendar › Accounts › Add Account › Other › Add Subscribed Calendar.</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <code className="min-w-0 flex-1 truncate rounded bg-mist px-2 py-1.5 text-xs">{d.calendar_url}</code>
+                    <Button size="sm" variant="secondary" onClick={() => copy(d.calendar_url!, 'Calendar link copied')}>Copy link</Button>
+                  </div>
+                  <p className="mt-2 text-xs text-muted">Keep this link private. Ask for a new one if your phone is lost.</p>
+                </Panel>
+              )}
             </div>
           )}
         </>
       )}
+
+      <Drawer open={Boolean(openJob)} onClose={() => setOpenId(null)} title="Job">
+        {openJob && <div className="rounded-xl border border-line border-t-[5px] bg-white p-4" style={{ borderTopColor: locOf(openJob)?.colour }}>{jobCard(openJob)}</div>}
+      </Drawer>
+
+      {sharing && d.share_url && (
+        <ShareWeek
+          name={d.me?.full_name ?? 'Schedule'}
+          isMe={Boolean(d.is_me)}
+          url={d.share_url}
+          published={Boolean(d.published_at)}
+          text={weekAsText(d.me?.full_name ?? 'Schedule', d.days ?? [], items)}
+          onClose={() => setSharing(false)}
+          copy={copy}
+        />
+      )}
       {toastNode}
     </>
+  );
+}
+
+/** Share a person's week: the phone's share sheet, a link to copy, or the week as text. */
+function ShareWeek({ name, isMe, url, published, text, onClose, copy }: { name: string; isMe: boolean; url: string; published: boolean; text: string; onClose: () => void; copy: (t: string, what?: string) => Promise<void> }) {
+  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  async function share() {
+    try {
+      await navigator.share({ title: `${name} – weekly schedule`, text: `${name}'s ASPARC schedule this week:`, url });
+    } catch {
+      /* cancelled */
+    }
+  }
+  const mail = `mailto:?subject=${encodeURIComponent(`${name} – weekly schedule`)}&body=${encodeURIComponent(`${text}\n\nLive version: ${url}`)}`;
+  const sms = `sms:?&body=${encodeURIComponent(`${name}'s schedule this week: ${url}`)}`;
+  const wa = `https://wa.me/?text=${encodeURIComponent(`${name}'s schedule this week: ${url}`)}`;
+  return (
+    <Drawer open onClose={onClose} title="Share this week">
+      <div className="space-y-4 text-sm">
+        <p>Send {isMe ? 'your' : `${name}'s`} weekly schedule to anyone – family, a club, another employer. The link opens a read-only calendar of the week that always shows the latest times.</p>
+        {!published && <Notice tone="warn">This week is still a draft. The link will show it once the week has been sent out from the Staff Planner.</Notice>}
+        <div className="flex flex-wrap gap-2">
+          {canShare && <Button onClick={share}>Share…</Button>}
+          <Button variant={canShare ? 'secondary' : 'primary'} onClick={() => copy(url, 'Schedule link copied')}>Copy link</Button>
+          <a className="inline-flex items-center rounded-md border border-line bg-white px-3.5 py-2 text-sm font-medium hover:border-royal hover:text-royal" href={wa} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+          <a className="inline-flex items-center rounded-md border border-line bg-white px-3.5 py-2 text-sm font-medium hover:border-royal hover:text-royal" href={sms}>Text message</a>
+          <a className="inline-flex items-center rounded-md border border-line bg-white px-3.5 py-2 text-sm font-medium hover:border-royal hover:text-royal" href={mail}>Email</a>
+        </div>
+        <code className="block break-all rounded bg-mist px-2 py-1.5 text-xs">{url}</code>
+        <Panel title="Or paste the week as text" actions={<Button size="sm" variant="secondary" onClick={() => copy(text, 'Week copied as text')}>Copy text</Button>}>
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap font-sans text-xs text-charcoal/80">{text}</pre>
+        </Panel>
+        <p className="text-xs text-muted">
+          The link shows times, jobs and venues for weeks that have been sent out – never access codes, notes, colleagues or clients. To stop every shared link working, use “Make a new calendar link” in Staff Planner › Staff &amp; places.
+        </p>
+      </div>
+    </Drawer>
   );
 }

@@ -19,6 +19,7 @@ import { db } from '../lib/db';
 import type { Role } from '../lib/db/types';
 import { buildCalendarFeed, confirmToken, runDayBeforeReminders } from '../lib/planner/notify';
 import { expandDates } from '../lib/planner/service';
+import { sharedWeek, staffForShare } from '../lib/planner/share';
 import { localToUtc, mondayOf } from '../lib/planner/time';
 import { addDays, melbourneDate } from '../lib/time/melbourne';
 import { adminCookie, ctx, freshDb, mockFetch, req, type FetchCall } from './helpers';
@@ -406,5 +407,40 @@ describe('Staff planner – My week', () => {
     const list = await json(await staffGET(req('/api/admin/planner/staff', { cookie })));
     assert.equal(list.body.logins, undefined);
     assert.equal(list.body.staff[0].calendar_url, undefined);
+  });
+
+  it('shares a read-only weekly schedule link: published weeks only, no access codes or notes, and it can be cut off', async () => {
+    const { sam, pri, ground } = await setup();
+    await addJob({ title: 'Pre-season S&C', location_id: ground.id, date: day(0), start_minutes: 390, end_minutes: 480, notes: 'Secret drill plan', staff: [{ staff_id: sam.id }, { staff_id: pri.id }] });
+    const login = await db().insert('admin_users', { email: 'sam.login@asparc.com.au', role: 'staff' });
+    await db().update('staff_members', sam.id, { admin_user_id: login.id });
+    const cookie = await cookieFor('staff', login.id, 'sam.login@asparc.com.au');
+    const r = await json(await myWeekGET(req(`/api/admin/planner/my-week?week=${WEEK}`, { cookie })));
+    const url: string = r.body.share_url;
+    assert.match(url, new RegExp(`/schedule/${sam.id}\\.[A-Za-z0-9_-]{32}\\?week=${WEEK}$`));
+    const token = url.split('/schedule/')[1].split('?')[0];
+
+    const staff = (await staffForShare(token))!;
+    assert.equal(staff.id, sam.id);
+    assert.equal(await staffForShare(`${sam.id}.${'x'.repeat(32)}`), null, 'a made-up signature fails');
+    assert.equal(await staffForShare(`${pri.id}.${token.split('.')[1]}`), null, 'a signature only works for its own person');
+
+    let w = await sharedWeek(staff, WEEK);
+    assert.equal(w.published, false);
+    assert.deepEqual(w.jobs, [], 'drafts are not shared');
+
+    resend();
+    await post(publishPOST, '/api/admin/planner/publish', { week_start: WEEK });
+    w = await sharedWeek(staff, WEEK);
+    assert.equal(w.name, 'Sam Coach');
+    assert.equal(w.jobs.length, 1);
+    assert.deepEqual([w.jobs[0].title, w.jobs[0].place, w.jobs[0].start, w.jobs[0].end], ['Pre-season S&C', 'Club ground', 390, 480]);
+    const shown = JSON.stringify(w);
+    for (const hidden of ['Gate code', 'Secret drill plan', 'Priya', 'calendar_token', 'priya@example.com']) assert.ok(!shown.includes(hidden), hidden);
+
+    await staffPATCH(req(`/api/admin/planner/staff/${sam.id}`, { method: 'PATCH', body: { rotate_calendar_link: true }, cookie: await adminCookie('owner') }), ctx(sam.id));
+    assert.equal(await staffForShare(token), null, 'a new calendar link cuts off shared links');
+    const other = await json(await myWeekGET(req(`/api/admin/planner/my-week?week=${WEEK}`, { cookie: await adminCookie('staff') })));
+    assert.equal(other.body.share_url, undefined, 'unlinked staff get no link');
   });
 });

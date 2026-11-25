@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { error, handler, HttpError, json, readJson, requireAdmin } from '@/lib/http/respond';
 import { calendarUrl } from '@/lib/planner/notify';
 import { acknowledge, getMyWeek, staffForSession } from '@/lib/planner/service';
+import { shareUrl } from '@/lib/planner/share';
 import { isYmd, mondayOf } from '@/lib/planner/time';
 import { melbourneDate } from '@/lib/time/melbourne';
 
@@ -31,6 +32,8 @@ export const GET = handler(async (req) => {
       staff_options: options,
       me: { id: staff.id, full_name: staff.full_name, role_title: staff.role_title },
       calendar_url: mine || planner ? calendarUrl(staff.calendar_token) : null,
+      /** Read-only weekly schedule link to share (published weeks only; no access notes). */
+      share_url: mine || planner ? shareUrl(staff, mondayOf(week)) : null,
       ...(await getMyWeek(staff.id, week)),
     });
   } catch (e) {

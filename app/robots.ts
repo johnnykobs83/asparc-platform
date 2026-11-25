@@ -2,5 +2,5 @@ import type { MetadataRoute } from 'next';
 
 export default function robots(): MetadataRoute.Robots {
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.asparc.com.au';
-  return { rules: [{ userAgent: '*', allow: '/', disallow: ['/admin', '/api', '/pre-visit'] }], sitemap: `${base}/sitemap.xml` };
+  return { rules: [{ userAgent: '*', allow: '/', disallow: ['/admin', '/api', '/pre-visit', '/schedule'] }], sitemap: `${base}/sitemap.xml` };
 }
