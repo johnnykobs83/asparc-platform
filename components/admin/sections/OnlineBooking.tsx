@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, fmtDate, label, useApi } from '../api';
 import { Badge, Button, DataTable, Drawer, ErrorNote, KV, Loading, Notice, Panel, useToast } from '../ui';
-import { clockLabel, melbourneLocal, money, WeekCalendar } from './WeekCalendar';
+import { clockLabel, melbourneLocal, money, PRACTITIONER_COLOURS, practitionerColours, WeekCalendar } from './WeekCalendar';
 
 type Can = (p: string) => boolean;
 type Hours = Record<string, { start: number; end: number }[]>;
@@ -18,6 +18,8 @@ interface PractitionerRow {
   active: boolean;
   /** The same person in the staff planner (lets them see their own clients' health forms). */
   staff_member_id?: string | null;
+  /** Calendar colour; null = picked automatically. */
+  colour?: string | null;
 }
 interface ServiceRow {
   id: string;
@@ -74,7 +76,7 @@ const hoursSummary = (h: Hours) =>
     .map(([k, n]) => `${n.slice(0, 3)} ${h[k].map((w) => `${toTime(w.start)}–${toTime(w.end)}`).join(', ')}`)
     .join(' · ') || 'No hours set';
 
-const blank: Omit<PractitionerRow, 'id'> = { name: '', title: '', service_ids: [], weekly_hours: {}, buffer_minutes: 0, active: true, staff_member_id: null };
+const blank: Omit<PractitionerRow, 'id'> = { name: '', title: '', service_ids: [], weekly_hours: {}, buffer_minutes: 0, active: true, staff_member_id: null, colour: null };
 const STATUS_TONE: Record<string, 'green' | 'neutral' | 'red' | 'amber'> = { confirmed: 'green', completed: 'neutral', cancelled: 'red', no_show: 'amber' };
 
 /** Online self-service bookings: who can be booked and when, plus the appointments customers have made. */
@@ -300,6 +302,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
   }
 
   const list = practitioners.data?.practitioners ?? [];
+  const colourOf = practitionerColours(list);
   const selected = selectedRow;
   const live = list.some((p) => p.active && Object.keys(p.weekly_hours ?? {}).length && p.service_ids.some((id) => bookable.some((s) => s.id === id && s.availability === 'available' && s.is_public)));
 
@@ -342,7 +345,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
         columns={[
           { key: 'when', header: 'When', sortValue: (a) => a.starts_at, render: (a) => <span className="whitespace-nowrap font-medium">{fmtDate(a.starts_at)}</span> },
           { key: 'service', header: 'Service', render: (a) => a.service_name },
-          { key: 'with', header: 'With', render: (a) => a.practitioner_name },
+          { key: 'with', header: 'With', render: (a) => <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: colourOf.get(a.practitioner_id) }} aria-hidden="true" />{a.practitioner_name}</span> },
           { key: 'customer', header: 'Customer', render: (a) => (a.customer ? <span><span className="font-medium">{a.customer.full_name}</span><span className="block text-xs text-muted">{[a.customer.phone, a.customer.email].filter(Boolean).join(' · ')}</span>{a.notes && <span className="block max-w-xs text-xs text-muted">Note: {a.notes}</span>}</span> : '–') },
           { key: 'price', header: 'Price', sortValue: (a) => a.charge_cents ?? -1, render: (a) => (a.charge_cents == null ? <span className="text-muted">On enquiry</span> : <span className="whitespace-nowrap tabular-nums">{money(a.charge_cents)}{a.final_price_cents != null && a.list_price_cents != null && a.final_price_cents !== a.list_price_cents && <span className="ml-1 text-xs text-muted line-through">{money(a.list_price_cents)}</span>}</span>) },
           { key: 'status', header: 'Status', render: (a) => <Badge tone={STATUS_TONE[a.status] ?? 'neutral'}>{label(a.status)}</Badge> },
@@ -369,12 +372,15 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
           <ul className="divide-y divide-line">
             {list.map((p) => (
               <li key={p.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
-                <div className="min-w-0">
+                <div className="flex min-w-0 gap-3">
+                  <span className="mt-1 h-4 w-4 shrink-0 rounded-full" style={{ background: colourOf.get(p.id) }} aria-hidden="true" />
+                  <div className="min-w-0">
                   <p className="font-medium">{p.name} {p.title && <span className="font-normal text-muted">· {p.title}</span>} {!p.active && <Badge tone="neutral">Inactive</Badge>}</p>
                   <p className="mt-0.5 text-xs text-muted">{hoursSummary(p.weekly_hours ?? {})}</p>
                   <p className="mt-0.5 text-xs text-muted">{p.service_ids.length ? p.service_ids.map((id) => serviceName.get(id) ?? 'Removed service').join(', ') : 'No services assigned'}</p>
+                  </div>
                 </div>
-                {can('services:write') && <Button size="sm" variant="secondary" onClick={() => { setFormError(null); setEditing({ id: p.id, draft: { name: p.name, title: p.title ?? '', service_ids: p.service_ids ?? [], weekly_hours: p.weekly_hours ?? {}, buffer_minutes: p.buffer_minutes, active: p.active, staff_member_id: p.staff_member_id ?? null } }); }}>Edit</Button>}
+                {can('services:write') && <Button size="sm" variant="secondary" onClick={() => { setFormError(null); setEditing({ id: p.id, draft: { name: p.name, title: p.title ?? '', service_ids: p.service_ids ?? [], weekly_hours: p.weekly_hours ?? {}, buffer_minutes: p.buffer_minutes, active: p.active, staff_member_id: p.staff_member_id ?? null, colour: p.colour ?? null } }); }}>Edit</Button>}
               </li>
             ))}
           </ul>
@@ -518,7 +524,7 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
               items={[
                 ['When', `${fmtDate(selected.starts_at)} – ${new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', hour: 'numeric', minute: '2-digit' }).format(new Date(selected.ends_at))}`],
                 ['Service', selected.service_name],
-                ['With', selected.practitioner_name],
+                ['With', <span key="w" className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: colourOf.get(selected.practitioner_id) }} aria-hidden="true" />{selected.practitioner_name}</span>],
                 ['Status', <Badge key="s" tone={STATUS_TONE[selected.status] ?? 'neutral'}>{label(selected.status)}</Badge>],
                 ['Mobile', selected.customer?.phone ? <a key="p" className="text-royal underline" href={`tel:${selected.customer.phone.replace(/\s/g, '')}`}>{selected.customer.phone}</a> : '–'],
                 ['Email', selected.customer?.email ? <a key="e" className="text-royal underline" href={`mailto:${selected.customer.email}`}>{selected.customer.email}</a> : '–'],
@@ -668,6 +674,20 @@ export function OnlineBookingPanel({ can }: { can: Can }) {
               </select>
               <span className="mt-1 block text-xs text-muted">Linking lets this practitioner (when they sign in to the dashboard) read the pre-visit health forms and notes of the clients they see. Managers can always see them.</span>
             </label>
+            <fieldset>
+              <legend className="font-medium">Calendar colour</legend>
+              <p className="mt-0.5 text-xs text-muted">Their bookings are shaded in this colour on the Bookings calendar.</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => patch({ colour: null })} className={`rounded-full border px-3 py-1 text-xs ${!editing.draft.colour ? 'border-charcoal bg-charcoal text-white' : 'border-line bg-white'}`}>Automatic</button>
+                {PRACTITIONER_COLOURS.map((c) => (
+                  <button key={c} type="button" aria-label={`Colour ${c}`} aria-pressed={editing.draft.colour === c} onClick={() => patch({ colour: c })} className={`h-7 w-7 rounded-full border-2 ${editing.draft.colour === c ? 'border-charcoal ring-2 ring-charcoal/30' : 'border-white shadow'}`} style={{ background: c }} />
+                ))}
+                <label className="ml-1 inline-flex items-center gap-1 text-xs text-muted">
+                  Other
+                  <input type="color" className="h-7 w-9 cursor-pointer rounded border border-line" value={editing.draft.colour ?? '#14519C'} onChange={(e) => patch({ colour: e.target.value })} />
+                </label>
+              </div>
+            </fieldset>
 
             {formError && <p className="text-danger" role="alert">{formError}</p>}
             <div className="flex gap-2">

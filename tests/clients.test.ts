@@ -332,3 +332,16 @@ describe('Form status flag', () => {
     assert.equal(addMonths('2026-11-25', 12), '2027-11-25');
   });
 });
+
+describe('Practitioner calendar colours', () => {
+  beforeEach(() => freshDb());
+  it('saves a chosen colour, clears it back to automatic, and refuses anything that is not a colour', async () => {
+    const { p } = await setup();
+    const patch = async (body: Record<string, unknown>) => practitionerPATCH(req(`/api/admin/practitioners/${p.id}`, { method: 'PATCH', body, cookie: await adminCookie('owner') }), ctx(p.id));
+    assert.equal((await patch({ colour: '#c2185b' })).status, 200);
+    assert.equal((await db().get('practitioners', p.id))!.colour, '#c2185b');
+    assert.equal((await patch({ colour: null })).status, 200);
+    assert.equal((await db().get('practitioners', p.id))!.colour, null);
+    assert.equal((await patch({ colour: 'red; background:url(x)' })).status, 422);
+  });
+});

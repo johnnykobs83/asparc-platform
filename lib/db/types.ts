@@ -348,6 +348,8 @@ export interface Practitioner {
   active: boolean;
   /** The same person in the staff planner – lets them see health forms for their own clients. */
   staff_member_id?: Uuid | null;
+  /** Shades their bookings on the calendar (#RRGGBB). Null = picked automatically. */
+  colour?: string | null;
   created_at: Iso;
   updated_at: Iso;
 }

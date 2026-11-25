@@ -20,6 +20,12 @@ const Fields = {
   active: z.boolean(),
   /** The same person in the staff planner, so they can see health forms for their own clients. */
   staff_member_id: z.string().uuid().nullable().optional(),
+  /** Calendar colour (#RRGGBB); null picks one automatically. */
+  colour: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/, 'Choose a colour')
+    .nullable()
+    .optional(),
 };
 
 /** Dashboard input when adding a practitioner. */

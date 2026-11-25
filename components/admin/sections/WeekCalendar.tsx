@@ -21,7 +21,25 @@ export interface CalendarPractitioner {
   name: string;
   active: boolean;
   weekly_hours: Record<string, { start: number; end: number }[]>;
+  colour?: string | null;
 }
+
+/** Colours for practitioners who haven't picked one – the same order every time (by name). */
+export const PRACTITIONER_COLOURS = ['#14519C', '#0E8C7F', '#D9822B', '#C2185B', '#6A4FB6', '#2E7D32', '#5D6D7E', '#B8860B'];
+const isHex = (c: string | null | undefined): c is string => Boolean(c && /^#[0-9A-Fa-f]{6}$/.test(c));
+/** Each practitioner's calendar colour: their chosen one, otherwise the next unused colour. */
+export function practitionerColours(practitioners: Pick<CalendarPractitioner, 'id' | 'name' | 'colour'>[]): Map<string, string> {
+  const out = new Map<string, string>();
+  const taken = new Set(practitioners.map((p) => p.colour).filter(isHex).map((c) => c.toLowerCase()));
+  const free = PRACTITIONER_COLOURS.filter((c) => !taken.has(c.toLowerCase()));
+  let i = 0;
+  for (const p of [...practitioners].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))) {
+    out.set(p.id, isHex(p.colour) ? p.colour : (free[i++ % Math.max(free.length, 1)] ?? PRACTITIONER_COLOURS[i % PRACTITIONER_COLOURS.length]));
+  }
+  return out;
+}
+/** A see-through shade of a colour (8-digit hex). */
+export const shade = (hex: string, alpha: string) => `${hex}${alpha}`;
 
 const TZ = 'Australia/Melbourne';
 const partsFmt = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -44,11 +62,12 @@ export const money = (cents: number | null | undefined) => (cents == null ? null
 
 const ROW = 26; // pixels per 30 minutes
 const SNAP = 15; // dragged bookings snap to quarter hours
-const TONE: Record<string, string> = {
-  confirmed: 'border-royal bg-royal text-white',
-  completed: 'border-line bg-mist text-charcoal',
-  no_show: 'border-warn/40 bg-[#fff6e8] text-warn',
-  cancelled: 'border-danger/30 bg-white text-danger line-through',
+/** Bookings are shaded in their practitioner's colour; the status changes how strong the shade is. */
+const STATUS_STYLE: Record<string, { alpha: string; text: string; extra?: string }> = {
+  confirmed: { alpha: '38', text: 'text-charcoal' },
+  completed: { alpha: '14', text: 'text-charcoal/70' },
+  no_show: { alpha: '14', text: 'text-warn', extra: 'border-dashed' },
+  cancelled: { alpha: '00', text: 'text-danger line-through', extra: 'bg-white' },
 };
 
 /**
@@ -72,6 +91,8 @@ export function WeekCalendar({
   const today = melbourneLocal(new Date()).ymd;
   const [weekStart, setWeekStart] = useState(() => mondayOf(today));
   const [showCancelled, setShowCancelled] = useState(false);
+  const [only, setOnly] = useState<Set<string>>(new Set());
+  const colours = useMemo(() => practitionerColours(practitioners), [practitioners]);
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const drag = useRef<{ a: CalendarAppointment; grabY: number; length: number } | null>(null);
   const [ghost, setGhost] = useState<{ date: string; minutes: number; length: number } | null>(null);
@@ -80,9 +101,10 @@ export function WeekCalendar({
     () =>
       appointments
         .filter((a) => showCancelled || a.status !== 'cancelled')
+        .filter((a) => !only.size || only.has(a.practitioner_id))
         .map((a) => ({ a, s: melbourneLocal(a.starts_at), e: melbourneLocal(a.ends_at) }))
         .filter((x) => x.s.ymd >= days[0] && x.s.ymd <= days[6]),
-    [appointments, days, showCancelled],
+    [appointments, days, showCancelled, only],
   );
 
   // Working hours of active practitioners, per weekday, for the shaded "open" background.
@@ -144,6 +166,44 @@ export function WeekCalendar({
           <Button size="sm" variant="secondary" onClick={() => setWeekStart(addDays(weekStart, 7))}>Next →</Button>
         </div>
       </div>
+
+      {practitioners.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-4 py-2" aria-label="Practitioners">
+          {[...practitioners]
+            .filter((p) => p.active || appointments.some((a) => a.practitioner_id === p.id))
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((p) => {
+              const c = colours.get(p.id) ?? '#14519C';
+              const on = !only.size || only.has(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-pressed={only.has(p.id)}
+                  title={only.has(p.id) ? `Showing ${p.name} – click to show everyone` : `Show only ${p.name}'s bookings (click more names to add them)`}
+                  onClick={() =>
+                    setOnly((cur) => {
+                      const n = new Set(cur);
+                      if (n.has(p.id)) n.delete(p.id);
+                      else n.add(p.id);
+                      return n;
+                    })
+                  }
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${on ? '' : 'opacity-40'}`}
+                  style={{ borderColor: c, background: shade(c, only.has(p.id) ? '38' : '14') }}
+                >
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: c }} aria-hidden="true" />
+                  {p.name}
+                </button>
+              );
+            })}
+          {only.size > 0 && (
+            <button type="button" className="ml-1 text-xs text-royal underline" onClick={() => setOnly(new Set())}>
+              Show everyone
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <div className="grid min-w-[860px]" style={{ gridTemplateColumns: '56px repeat(7, minmax(0, 1fr))' }}>
@@ -213,6 +273,8 @@ export function WeekCalendar({
                   const movable = Boolean(onMove) && a.status === 'confirmed';
                   const price = money(a.charge_cents);
                   const discounted = a.final_price_cents != null && a.list_price_cents != null && a.final_price_cents !== a.list_price_cents;
+                  const c = colours.get(a.practitioner_id) ?? '#14519C';
+                  const st = STATUS_STYLE[a.status] ?? STATUS_STYLE.completed;
                   return (
                     <button
                       key={a.id}
@@ -229,8 +291,8 @@ export function WeekCalendar({
                       }}
                       onClick={() => onSelect(a)}
                       title={`${timeFmt.format(new Date(a.starts_at))} – ${timeFmt.format(new Date(a.ends_at))} · ${a.customer?.full_name ?? 'Customer'} · ${a.service_name} · ${a.practitioner_name}${price ? ` · ${price}${discounted ? ` (was ${money(a.list_price_cents)})` : ''}` : ''}${movable ? ' · drag to move' : ''}`}
-                      className={`absolute overflow-hidden rounded-md border px-1.5 py-1 text-left text-[11px] leading-tight shadow-sm hover:brightness-110 ${movable ? 'cursor-grab active:cursor-grabbing' : ''} ${TONE[a.status] ?? TONE.completed}`}
-                      style={{ top: y(s.minutes) + 1, height: Math.max(y(end) - y(s.minutes) - 2, 20), left: `calc(${lane * width}% + 2px)`, width: `calc(${width}% - 4px)` }}
+                      className={`absolute overflow-hidden rounded-md border border-l-4 px-1.5 py-1 text-left text-[11px] leading-tight shadow-sm hover:brightness-95 ${movable ? 'cursor-grab active:cursor-grabbing' : ''} ${st.text} ${st.extra ?? ''}`}
+                      style={{ top: y(s.minutes) + 1, height: Math.max(y(end) - y(s.minutes) - 2, 20), left: `calc(${lane * width}% + 2px)`, width: `calc(${width}% - 4px)`, borderColor: shade(c, '66'), borderLeftColor: c, ...(a.status === 'cancelled' ? {} : { background: `linear-gradient(${shade(c, st.alpha)}, ${shade(c, st.alpha)}), #fff` }) }}
                     >
                       <span className="flex justify-between gap-1 font-semibold">
                         <span>{timeFmt.format(new Date(a.starts_at))}</span>
@@ -238,7 +300,7 @@ export function WeekCalendar({
                       </span>
                       <span className="block truncate">{a.customer?.full_name ?? 'Customer'}</span>
                       <span className="block truncate opacity-80">{a.service_name}</span>
-                      {lanes.length > 1 && <span className="block truncate opacity-80">{a.practitioner_name}</span>}
+                      <span className="block truncate font-medium" style={{ color: a.status === 'cancelled' ? undefined : c }}>{a.practitioner_name}</span>
                     </button>
                   );
                 })}
@@ -248,7 +310,7 @@ export function WeekCalendar({
         </div>
       </div>
       <p className="border-t border-line px-4 py-2 text-xs text-muted">
-        White areas are your practitioners&apos; bookable hours; grey is closed. {onAdd ? 'Click an empty time to add a booking. ' : ''}{onMove ? 'Drag a confirmed booking to another day or time to move it. ' : ''}Click a booking for the customer&apos;s details, price and other changes. * marks an adjusted price.
+        Each practitioner has their own colour – click a name above to show only theirs. A strong shade is booked, a pale shade is completed, dashed is a no-show. White areas are bookable hours; grey is closed. {onAdd ? 'Click an empty time to add a booking. ' : ''}{onMove ? 'Drag a confirmed booking to another day or time to move it. ' : ''}Click a booking for the customer&apos;s details, price and other changes. * marks an adjusted price.
       </p>
     </div>
   );

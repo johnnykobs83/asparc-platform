@@ -138,7 +138,7 @@ export const DEFAULTS: { [K in TableName]?: Partial<Tables[K]> } = {
   payments: { customer_id: null, provider: 'stripe', description: null, currency: 'aud', paid_at: null, service_slug: null, tax_cents: null, refunded_cents: 0 },
   daily_summaries: { timezone: 'Australia/Melbourne', email_status: 'not_required' },
   admin_users: { full_name: null, role: 'staff', active: true, password_hash: null, last_login_at: null },
-  practitioners: { title: null, service_ids: [], weekly_hours: {}, buffer_minutes: 0, active: true, staff_member_id: null },
+  practitioners: { title: null, service_ids: [], weekly_hours: {}, buffer_minutes: 0, active: true, staff_member_id: null, colour: null },
   client_notes: { author_id: null, author_name: null },
   intake_forms: {
     status: 'sent', sent_by: null, sent_to: null, reason: 'manual', submitted_at: null, for_whom: null, athlete_name: null, athlete_dob: null,
