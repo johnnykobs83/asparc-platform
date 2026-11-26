@@ -216,6 +216,19 @@ export function PayLink({ s, className = 'btn-outline-dark', children = 'Pay onl
   );
 }
 
+/** "per person" when a service is priced per athlete (its price unit says so). */
+export const perPerson = (s: Pick<Service, 'price_unit'>) => /per person/i.test(s.price_unit ?? '');
+
+/** "Pay online" where the service has a payment link, otherwise "Book" – a booking request that staff confirm. */
+export function PayOrBook({ s, className }: { s: Service; className: string }) {
+  if (payUrl(s)) return <PayLink s={s} className={className} />;
+  return (
+    <Link href={enquireHref(s)} className={className} aria-label={`Book ${s.name}`}>
+      Book
+    </Link>
+  );
+}
+
 /** Large promotional block for a featured service. */
 export function FeaturedOffer({ s, id, headingLevel = 'h2', showMore = true }: { s: Service; id?: string; headingLevel?: 'h2' | 'h3'; showMore?: boolean }) {
   const H = headingLevel;

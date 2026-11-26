@@ -5,7 +5,7 @@ import type { PublicSiteData } from '@/lib/kb/service';
 import { ACADEMY, ACADEMY_GROUPS } from '@/lib/academy/config';
 import { AcademyEnrol } from '../AcademyEnrol';
 import { EnquiryForm } from '../EnquiryForm';
-import { Check, CtaBand, DraftBadge, FeaturedOffer, ImageSlot, OfferPrice, PageHero, PayLink, PendingBadge, Section, SectionHeading, ServiceStatus, SpecialBadge, cx, enquireHref, featuredServices, isOnSpecial, priceText } from '../ui';
+import { Check, CtaBand, DraftBadge, FeaturedOffer, ImageSlot, OfferPrice, PageHero, PayLink, PayOrBook, PendingBadge, Section, SectionHeading, ServiceStatus, SpecialBadge, cx, enquireHref, featuredServices, isOnSpecial, perPerson, priceText } from '../ui';
 
 const opts = (site: PublicSiteData) => site.services.filter((s) => s.availability !== 'unavailable').map((s) => ({ name: s.name, category: s.category }));
 
@@ -95,11 +95,14 @@ export function SportsPerformanceView({ site }: { site: PublicSiteData }) {
                   <tr key={t.id} className="border-b border-line last:border-0">
                     <td className="px-6 py-4">
                       <span className="font-display text-xl font-bold">{t.name.replace(/^Training session – /, '')}</span>
-                      {t.price_unit && <span className="block text-sm text-muted">{t.price_unit}</span>}
+                      <span className="block text-sm text-muted">60-minute session</span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <span className="block font-display text-2xl font-extrabold text-royal">{priceText({ ...t, price_unit: null }) ?? 'On enquiry'}</span>
-                      <PayLink s={t} className="mt-1 inline-block text-sm font-semibold text-royal underline underline-offset-2 hover:text-charcoal" />
+                      <span className="block font-display text-2xl font-extrabold text-royal">
+                        {priceText({ ...t, price_unit: null }) ?? 'On enquiry'}
+                        {perPerson(t) && <span className="ml-1 font-sans text-sm font-medium text-muted">per person</span>}
+                      </span>
+                      <PayOrBook s={t} className="mt-1 inline-block text-sm font-semibold text-royal underline underline-offset-2 hover:text-charcoal" />
                     </td>
                   </tr>
                 ))}
