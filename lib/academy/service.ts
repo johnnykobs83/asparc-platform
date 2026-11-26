@@ -295,9 +295,21 @@ export async function updateEnrolment(id: string, raw: unknown) {
   return repo.update('academy_enrolments', id, next);
 }
 
-export const SessionPatch = z.object({ capacity: z.number().int().min(1).max(100).optional(), active: z.boolean().optional() }).strict();
+export const SessionPatch = z
+  .object({
+    capacity: z.number().int().min(1).max(100).optional(),
+    active: z.boolean().optional(),
+    group_key: z.enum(['foundation', 'athletic', 'performance']).optional(),
+  })
+  .strict();
 export async function updateSession(id: string, raw: unknown) {
   const p = SessionPatch.parse(raw);
-  if (!(await db().get('academy_sessions', id))) throw new HttpError(404, 'Session not found');
+  const current = await db().get('academy_sessions', id);
+  if (!current) throw new HttpError(404, 'Session not found');
+  if (p.group_key && p.group_key !== current.group_key) {
+    // Families who enrolled chose this session for their child's age group: never move them silently.
+    const booked = (await db().list('academy_enrolments')).filter((e) => e.status !== 'cancelled' && e.session_ids.includes(id));
+    if (booked.length) throw new HttpError(409, `${booked.length} enrolment${booked.length === 1 ? ' is' : 's are'} in this session. Move or cancel them before changing its age group.`);
+  }
   return db().update('academy_sessions', id, p);
 }

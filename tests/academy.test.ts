@@ -49,9 +49,13 @@ const nextWeekday = (wd: number) => {
 describe('Football Performance Academy – timetable and packages', () => {
   beforeEach(() => freshDb(RESEND));
 
-  it('has the owner’s 16 weekly sessions, 12 places each, and the four packages with prices', async () => {
+  it('has the owner’s 15 weekly sessions, 12 places each, and the four packages with prices', async () => {
     const t = await timetable();
-    assert.equal(t.sessions.length, 16);
+    assert.equal(t.sessions.length, 15);
+    assert.deepEqual(
+      t.sessions.filter((s) => s.weekday === 4).map((s) => s.group_key),
+      ['foundation', 'foundation', 'foundation'],
+    );
     assert.ok(t.sessions.every((s) => s.places_left === 12));
     assert.deepEqual(
       t.sessions.filter((s) => s.weekday === 6).map((s) => [s.start_minutes, s.group_key]),
@@ -100,19 +104,19 @@ describe('Football Performance Academy – enrolling', () => {
     assert.equal(r.status, 422);
     assert.match((await r.json()).fields.group_key, /8–11 year olds/);
 
-    const tue = await pick('foundation', 2);
-    r = await enrol({ package: 'term_2x', session_ids: [tue.id] });
+    const thu = await pick('foundation', 4);
+    r = await enrol({ package: 'term_2x', session_ids: [thu.id] });
     assert.match((await r.json()).fields.session_ids, /two sessions/);
-    r = await enrol({ package: 'term_2x', session_ids: [(await pick('athletic', 2)).id, tue.id] });
+    r = await enrol({ package: 'term_2x', session_ids: [(await pick('athletic', 2)).id, thu.id] });
     assert.match((await r.json()).fields.session_ids, /Foundation Movers sessions/);
-    r = await enrol({ package: 'term_2x', session_ids: [tue.id, (await pick('foundation', 4)).id] });
+    r = await enrol({ package: 'term_2x', session_ids: [thu.id, (await pick('foundation', 6)).id] });
     assert.equal(r.status, 201);
 
-    r = await enrol({ package: 'casual', session_ids: [tue.id], casual_date: nextWeekday(3) });
-    assert.match((await r.json()).fields.casual_date, /isn’t a Tuesday/);
-    r = await enrol({ package: 'casual', session_ids: [tue.id], casual_date: nextWeekday(2) });
+    r = await enrol({ package: 'casual', session_ids: [thu.id], casual_date: nextWeekday(5) });
+    assert.match((await r.json()).fields.casual_date, /isn’t a Thursday/);
+    r = await enrol({ package: 'casual', session_ids: [thu.id], casual_date: nextWeekday(4) });
     assert.equal(r.status, 201);
-    assert.equal((await pick('foundation', 2)).places_left, 11, 'a casual visit doesn’t take a weekly place');
+    assert.equal((await pick('foundation', 4)).places_left, 11, 'a casual visit doesn’t take a weekly place');
     assert.equal((await enrol({ guardian_consent: false })).status, 422);
   });
 
@@ -162,6 +166,14 @@ describe('Football Performance Academy – dashboard', () => {
     const sid = data.sessions[0].id;
     assert.equal((await sessionPATCH(req(`/api/admin/football-academy/sessions/${sid}`, { method: 'PATCH', body: { capacity: 14 }, cookie }), ctx(sid))).status, 403);
     assert.equal((await sessionPATCH(req(`/api/admin/football-academy/sessions/${sid}`, { method: 'PATCH', body: { capacity: 14 }, cookie: await adminCookie('manager') }), ctx(sid))).status, 200);
+
+    // A session's age group can change only while no family is booked into it.
+    const manager = await adminCookie('manager');
+    const moved = await sessionPATCH(req(`/api/admin/football-academy/sessions/${sid}`, { method: 'PATCH', body: { group_key: 'athletic' }, cookie: manager }), ctx(sid));
+    assert.equal(moved.status, 409);
+    const free = data.sessions.find((s: { weekday: number; taken: number }) => s.weekday === 5 && s.taken === 0).id;
+    const ok = await (await sessionPATCH(req(`/api/admin/football-academy/sessions/${free}`, { method: 'PATCH', body: { group_key: 'foundation' }, cookie: manager }), ctx(free))).json();
+    assert.equal(ok.session.group_key, 'foundation');
   });
 
   it('a privacy deletion removes the family’s enrolments', async () => {

@@ -71,19 +71,19 @@ export const packageOf = (key: string) => ACADEMY_PACKAGES.find((p) => p.key ===
 
 /** Weekday 1 = Monday … 7 = Sunday; minutes from midnight, Melbourne time. */
 export const DEFAULT_TIMETABLE: { weekday: number; start: number; end: number; group: AcademyGroupKey }[] = [
+  // Owner's timetable, updated 26 Nov 2026 (15 sessions a week).
   { weekday: 1, start: 990, end: 1040, group: 'foundation' },
   { weekday: 2, start: 990, end: 1040, group: 'athletic' },
-  { weekday: 2, start: 1040, end: 1090, group: 'foundation' },
+  { weekday: 2, start: 1040, end: 1090, group: 'athletic' },
   { weekday: 2, start: 1090, end: 1140, group: 'performance' },
   { weekday: 3, start: 990, end: 1040, group: 'performance' },
   { weekday: 3, start: 1040, end: 1090, group: 'athletic' },
-  { weekday: 3, start: 1090, end: 1140, group: 'foundation' },
+  { weekday: 3, start: 1090, end: 1140, group: 'performance' },
   { weekday: 4, start: 990, end: 1040, group: 'foundation' },
-  { weekday: 4, start: 1040, end: 1090, group: 'performance' },
-  { weekday: 4, start: 1090, end: 1140, group: 'athletic' },
+  { weekday: 4, start: 1040, end: 1090, group: 'foundation' },
+  { weekday: 4, start: 1090, end: 1140, group: 'foundation' },
   { weekday: 5, start: 990, end: 1040, group: 'athletic' },
-  { weekday: 5, start: 1040, end: 1090, group: 'foundation' },
-  { weekday: 5, start: 1090, end: 1140, group: 'performance' },
+  { weekday: 5, start: 1040, end: 1090, group: 'performance' },
   { weekday: 6, start: 490, end: 540, group: 'foundation' },
   { weekday: 6, start: 540, end: 590, group: 'athletic' },
   { weekday: 6, start: 590, end: 640, group: 'performance' },
