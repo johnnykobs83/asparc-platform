@@ -9,10 +9,12 @@ export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Bool
  * otherwise falls back to the branded duotone treatment underneath – so the
  * site always looks finished, and real photography drops straight in.
  */
-export function ImageSlot({ src, className = '', overlay = 'dark', label, children }: { src: string; className?: string; overlay?: 'dark' | 'royal' | 'none'; label?: string; children?: ReactNode }) {
+export function ImageSlot({ src, className = '', overlay = 'dark', label, children }: { src: string; className?: string; overlay?: 'dark' | 'royal' | 'portrait' | 'none'; label?: string; children?: ReactNode }) {
   const overlays = {
     dark: 'linear-gradient(100deg, rgba(16,24,32,0.94) 0%, rgba(16,24,32,0.78) 45%, rgba(16,24,32,0.35) 100%)',
     royal: 'linear-gradient(160deg, rgba(20,81,156,0.25) 0%, rgba(16,24,32,0.55) 100%)',
+    // A person's photo: clear face, darker at the foot so a name over it reads.
+    portrait: 'linear-gradient(180deg, rgba(16,24,32,0) 50%, rgba(16,24,32,0.35) 72%, rgba(16,24,32,0.88) 100%)',
     none: 'linear-gradient(transparent, transparent)',
   };
   return (
@@ -24,7 +26,7 @@ export function ImageSlot({ src, className = '', overlay = 'dark', label, childr
         backgroundImage: `${overlays[overlay]}, url(${src}), radial-gradient(120% 90% at 85% 15%, rgba(107,159,197,0.55) 0%, rgba(20,81,156,0.55) 35%, rgba(16,24,32,1) 75%)`,
       }}
     >
-      <div className="speed-lines pointer-events-none absolute inset-0" aria-hidden="true" />
+      {overlay !== 'portrait' && <div className="speed-lines pointer-events-none absolute inset-0" aria-hidden="true" />}
       {children}
     </div>
   );

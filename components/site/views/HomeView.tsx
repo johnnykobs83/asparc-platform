@@ -143,7 +143,7 @@ export function HomeView({ site }: { site: PublicSiteData }) {
       {/* FOUNDER */}
       <Section>
         <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
-          <ImageSlot src={IMAGES.founder} overlay="royal" className="aspect-[4/5] rounded-2xl lg:col-span-5" label="John Kobiela, ASPARC founder">
+          <ImageSlot src={IMAGES.founder} overlay="portrait" className="aspect-[4/5] rounded-2xl lg:col-span-5" label="John Kobiela, ASPARC founder">
             <div className="absolute bottom-0 left-0 p-7 text-white">
               <p className="font-display text-3xl font-bold uppercase leading-none">John Kobiela</p>
               <p className="mt-1 text-sm text-white/75">Founder</p>

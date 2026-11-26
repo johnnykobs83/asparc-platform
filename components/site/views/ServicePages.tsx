@@ -412,7 +412,7 @@ export function AboutView({ site }: { site: PublicSiteData }) {
       <Section tone="dark" className="overflow-hidden">
         <div className="speed-lines absolute inset-0" aria-hidden="true" />
         <div className="relative grid gap-12 lg:grid-cols-12 lg:items-center">
-          <ImageSlot src={IMAGES.founder} overlay="royal" className="aspect-[4/5] rounded-2xl lg:col-span-5" label="John Kobiela" />
+          <ImageSlot src={IMAGES.founder} overlay="portrait" className="aspect-[4/5] rounded-2xl lg:col-span-5" label="John Kobiela" />
           <div className="lg:col-span-7">
             <p className="eyebrow mb-3">Founder</p>
             <h2 className="text-5xl uppercase leading-none">John Kobiela</h2>
