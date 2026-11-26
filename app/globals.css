@@ -115,3 +115,39 @@
     text-wrap: balance;
   }
 }
+
+/* Deal banner above the header: a light sweeping shine, a "live" dot, a nudging arrow
+   and a bar that fills while each deal is shown. All motion stops for people who
+   prefer reduced motion. */
+@keyframes deal-shine {
+  0% { transform: translateX(-120%) skewX(-20deg); }
+  60%, 100% { transform: translateX(320%) skewX(-20deg); }
+}
+@keyframes deal-nudge {
+  0%, 70%, 100% { transform: translateX(0); }
+  80% { transform: translateX(4px); }
+  90% { transform: translateX(0); }
+}
+@keyframes deal-pop {
+  0%, 85%, 100% { transform: scale(1); }
+  92% { transform: scale(1.08); }
+}
+@keyframes deal-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes deal-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@layer utilities {
+  .deal-shine { animation: deal-shine 4.5s ease-in-out infinite; }
+  .deal-nudge { animation: deal-nudge 2.6s ease-in-out infinite; }
+  .deal-pop { animation: deal-pop 3.2s ease-in-out infinite; }
+  .deal-fill { animation: deal-fill var(--deal-ms, 7000ms) linear forwards; transform-origin: left; }
+  .deal-in { animation: deal-in 0.45s ease-out both; }
+  @media (prefers-reduced-motion: reduce) {
+    .deal-shine, .deal-nudge, .deal-pop, .deal-fill, .deal-in { animation: none; }
+    .deal-shine { display: none; }
+  }
+}

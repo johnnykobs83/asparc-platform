@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import type { Deal } from './AnnouncementBar';
 import type { Service } from '@/lib/db/types';
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
@@ -141,7 +142,7 @@ export function Check({ children, dark = false }: { children: ReactNode; dark?: 
 
 /* ---------------------------------------------------------------- specials */
 
-const dollars = (cents: number) => {
+export const dollars = (cents: number) => {
   const d = cents / 100;
   return Number.isInteger(d) ? `$${d}` : `$${d.toFixed(2)}`;
 };
@@ -240,6 +241,29 @@ export function FeaturedOffer({ s, id, headingLevel = 'h2', showMore = true }: {
       <div className="h-1.5 w-full bg-gradient-to-r from-royal via-sky to-royal" aria-hidden="true" />
     </section>
   );
+}
+
+/** "First 10 athletes" when the offer's own terms say so. */
+const firstN = (terms: string | null | undefined) => {
+  const m = terms?.match(/first (\d+) (athletes|clients|people|spots)/i);
+  return m ? `First ${m[1]} ${m[2].toLowerCase()}` : undefined;
+};
+
+/** A service on offer, as a deal for the bar above the header – only real prices and terms. */
+export function dealFor(s: Service, d: { key: string; href: string; tag?: string; title?: string; detail?: string; cta: string }): Deal {
+  const special = isOnSpecial(s);
+  return {
+    key: d.key,
+    href: d.href,
+    tag: d.tag ?? (s.offer_label || (special ? 'Intro special' : 'Featured')),
+    title: d.title ?? s.name,
+    detail: d.detail,
+    price: priceText(s) ?? undefined,
+    was: special ? dollars(s.standard_price_cents!) : undefined,
+    save: special ? `Save ${dollars(s.standard_price_cents! - s.price_cents!)}` : undefined,
+    note: firstN(s.offer_terms),
+    cta: d.cta,
+  };
 }
 
 /** What the site-wide bar says about a special (used inside AnnouncementBar). */
