@@ -3,7 +3,7 @@ import { IMAGES } from '@/lib/brand';
 import type { PublicSiteData } from '@/lib/kb/service';
 import { CLINIC_PAGES, DIVISIONS, type Division } from '@/lib/site/divisions';
 import { EnquiryForm } from '../EnquiryForm';
-import { Check, CtaBand, FeaturedOffer, NumberedCard, PageHero, Section, SectionHeading, cx, featuredServices, priceText } from '../ui';
+import { Check, CtaBand, FeaturedOffer, NumberedCard, PageHero, PayLink, Section, SectionHeading, cx, featuredServices, priceText } from '../ui';
 
 const TONES: Record<Division['key'], string> = {
   club: 'bg-royal text-white',
@@ -156,7 +156,10 @@ export function ClinicView({ site }: { site: PublicSiteData }) {
             {priced.map((s) => (
               <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-3 px-6 py-4">
                 <span className="font-display text-lg font-bold uppercase">{s.name}</span>
-                <span className="font-display text-lg font-bold text-royal">{priceText(s)}</span>
+                <span className="flex items-baseline gap-4">
+                  <span className="font-display text-lg font-bold text-royal">{priceText(s)}</span>
+                  <PayLink s={s} className="text-sm font-semibold text-royal underline underline-offset-2 hover:text-charcoal" />
+                </span>
               </li>
             ))}
           </ul>

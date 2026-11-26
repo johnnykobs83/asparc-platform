@@ -197,6 +197,22 @@ export function OfferPrice({ s, dark = false, size = 'lg' }: { s: Service; dark?
   );
 }
 
+/** The Stripe payment link for a service, when it can be paid for online. */
+export function payUrl(s: Pick<Service, 'payment_link_url' | 'price_status' | 'availability'>): string | null {
+  return s.payment_link_url && s.price_status === 'approved' && s.availability === 'available' ? s.payment_link_url : null;
+}
+
+/** "Pay online" – opens the service's Stripe checkout in a new tab. */
+export function PayLink({ s, className = 'btn-outline-dark', children = 'Pay online' }: { s: Service; className?: string; children?: ReactNode }) {
+  const url = payUrl(s);
+  if (!url) return null;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className={className} aria-label={`Pay online for ${s.name} (opens Stripe secure checkout)`}>
+      {children}
+    </a>
+  );
+}
+
 /** Large promotional block for a featured service. */
 export function FeaturedOffer({ s, id, headingLevel = 'h2', showMore = true }: { s: Service; id?: string; headingLevel?: 'h2' | 'h3'; showMore?: boolean }) {
   const H = headingLevel;
@@ -214,6 +230,7 @@ export function FeaturedOffer({ s, id, headingLevel = 'h2', showMore = true }: {
           <OfferPrice s={s} />
           <div className="mt-7 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
             <Link href={enquireHref(s)} className="btn-primary flex-1">Claim your spot</Link>
+            <PayLink s={s} className="btn-outline-dark flex-1">Pay now</PayLink>
             {showMore && <Link href="/sports-performance#special" className="btn-outline-dark flex-1">Find out more</Link>}
           </div>
         </div>

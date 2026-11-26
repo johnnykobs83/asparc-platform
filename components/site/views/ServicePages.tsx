@@ -5,7 +5,7 @@ import type { PublicSiteData } from '@/lib/kb/service';
 import { ACADEMY, ACADEMY_GROUPS } from '@/lib/academy/config';
 import { AcademyEnrol } from '../AcademyEnrol';
 import { EnquiryForm } from '../EnquiryForm';
-import { Check, CtaBand, DraftBadge, FeaturedOffer, ImageSlot, OfferPrice, PageHero, PendingBadge, Section, SectionHeading, ServiceStatus, SpecialBadge, cx, enquireHref, featuredServices, isOnSpecial, priceText } from '../ui';
+import { Check, CtaBand, DraftBadge, FeaturedOffer, ImageSlot, OfferPrice, PageHero, PayLink, PendingBadge, Section, SectionHeading, ServiceStatus, SpecialBadge, cx, enquireHref, featuredServices, isOnSpecial, priceText } from '../ui';
 
 const opts = (site: PublicSiteData) => site.services.filter((s) => s.availability !== 'unavailable').map((s) => ({ name: s.name, category: s.category }));
 
@@ -28,11 +28,13 @@ function ServiceGrid({ services, numbered = true }: { services: Service[]; numbe
               <div className="mt-5 border-t border-line pt-4">
                 <OfferPrice s={s} size="md" />
                 <Link href={enquireHref(s)} className="btn-primary mt-5 w-full">Claim your spot</Link>
+                <PayLink s={s} className="btn-outline-dark mt-3 w-full">Pay now</PayLink>
               </div>
             ) : (
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
                 <span className="font-display text-lg font-bold">{priceText(s) ?? 'Pricing on enquiry'}</span>
                 <ServiceStatus s={s} />
+                <PayLink s={s} className="w-full text-sm font-semibold text-royal underline underline-offset-2 hover:text-charcoal" />
               </div>
             )}
           </article>
@@ -279,7 +281,10 @@ export function RecoveryView({ site }: { site: PublicSiteData }) {
                         <span className="font-display text-2xl font-bold">{m.duration_minutes} min</span>
                         <span className="block text-sm text-muted">{m.name.replace(/ – \d+ minutes/, '')}</span>
                       </td>
-                      <td className="px-6 py-5 text-right font-display text-3xl font-extrabold text-royal">{priceText(m) ?? 'On enquiry'}</td>
+                      <td className="px-6 py-5 text-right">
+                        <span className="block font-display text-3xl font-extrabold text-royal">{priceText(m) ?? 'On enquiry'}</span>
+                        <PayLink s={m} className="mt-1 inline-block text-sm font-semibold text-royal underline underline-offset-2 hover:text-charcoal" />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
