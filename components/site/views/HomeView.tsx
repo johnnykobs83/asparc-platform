@@ -156,8 +156,10 @@ export function HomeView({ site }: { site: PublicSiteData }) {
             <ul className="mt-8 grid gap-3 sm:grid-cols-2">
               <Check>Master of High Performance (2017)</Check>
               <Check>Bachelor of Exercise Science &amp; Human Movement (2010)</Check>
-              <Check>High performance – Newcastle Jets</Check>
-              <Check>High performance – Avondale FC</Check>
+              <Check>20+ years in professional football high performance</Check>
+              <Check>Australian National Teams</Check>
+              <Check>Bangkok United · Newcastle Jets · Avondale FC</Check>
+              <Check>Many teams across Asia</Check>
             </ul>
             <Link href="/about" className="btn-outline-dark mt-10">Read more</Link>
           </div>

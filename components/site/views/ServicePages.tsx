@@ -426,10 +426,13 @@ export function AboutView({ site }: { site: PublicSiteData }) {
                 </ul>
               </div>
               <div>
-                <h3 className="eyebrow mb-3">Professional football</h3>
+                <h3 className="eyebrow mb-3">Professional football · 20+ years</h3>
                 <ul className="space-y-2.5 text-[15px] text-white/85">
+                  <Check dark>Australian National Teams</Check>
+                  <Check dark>Bangkok United</Check>
                   <Check dark>Newcastle Jets</Check>
                   <Check dark>Avondale FC</Check>
+                  <Check dark>Many teams across Asia</Check>
                 </ul>
               </div>
             </div>

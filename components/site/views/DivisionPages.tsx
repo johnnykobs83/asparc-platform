@@ -89,7 +89,7 @@ export function ClubServicesView() {
             />
             <ul className="space-y-3 text-[15px]">
               <Check>One service or the full set</Check>
-              <Check>Led by experience from professional football (Newcastle Jets, Avondale FC)</Check>
+              <Check>Led by 20+ years in professional football high performance – Australian National Teams, Bangkok United, Newcastle Jets, Avondale FC</Check>
             </ul>
           </div>
           <div className="lg:col-span-7">

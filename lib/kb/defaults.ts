@@ -261,7 +261,7 @@ export const DEFAULT_KNOWLEDGE: SeedKb[] = [
     category: 'business',
     title: 'Founder – John Kobiela',
     content:
-      'ASPARC was founded by John Kobiela, a sports performance professional with experience in professional football high performance, including work with Newcastle Jets and Avondale FC. John holds a Bachelor of Exercise Science and Human Movement (2010) and a Master of High Performance (2017).',
+      'ASPARC was founded by John Kobiela, a Sports High Performance professional with over 20 years of experience in professional football high performance, including work with Australian National Teams, Bangkok United, Newcastle Jets, Avondale FC and many teams across Asia. John holds a Bachelor of Exercise Science and Human Movement (2010) and a Master of High Performance (2017).',
   }),
   kb({
     key: 'business.practitioners',
