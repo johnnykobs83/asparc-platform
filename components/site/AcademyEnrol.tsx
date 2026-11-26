@@ -56,11 +56,15 @@ function Field({ id, label, required, error, hint, children }: { id: string; lab
   );
 }
 
+/** "8–11 Years" */
+const yearsText = (ages: string) => `${ages} Years`;
+
 /** Timetable, packages and the enrolment form for the Football Performance Academy page. */
 export function AcademyEnrol() {
   const [data, setData] = useState<Data | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [group, setGroup] = useState<AcademyGroupKey | ''>('');
+  const [show, setShow] = useState<AcademyGroupKey | 'all'>('all');
   const [pack, setPack] = useState<AcademyPackageKey>('term_1x');
   const [picked, setPicked] = useState<string[]>([]);
   const [casualDate, setCasualDate] = useState('');
@@ -172,13 +176,24 @@ export function AcademyEnrol() {
           <p className="eyebrow mb-3 text-royal">Weekly timetable · {ACADEMY.term}</p>
           <h2 className="text-balance text-4xl uppercase leading-[0.95] sm:text-5xl">Pick the days that suit you</h2>
           <p className="mt-4 max-w-2xl text-lg text-muted">Every session is 50 minutes at {ACADEMY.venue}, with no more than {ACADEMY.capacity} athletes. Tap a session to start your enrolment.</p>
-          <div className="mt-6 flex flex-wrap gap-2">
-            {ACADEMY_GROUPS.map((g) => (
-              <span key={g.key} className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-sm font-medium" style={{ borderColor: g.colour }}>
-                <span className="h-3 w-3 rounded-full" style={{ background: g.colour }} aria-hidden="true" />
-                {g.name} · {g.ages}
-              </span>
-            ))}
+          <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Show sessions for">
+            {[{ key: 'all' as const, name: 'All groups', ages: '', colour: '#101820' }, ...ACADEMY_GROUPS].map((g) => {
+              const on = show === g.key;
+              return (
+                <button
+                  key={g.key}
+                  type="button"
+                  onClick={() => setShow(g.key)}
+                  aria-pressed={on}
+                  className={`inline-flex items-center gap-2 rounded-full border-2 px-4 py-1.5 text-sm font-semibold transition ${on ? 'text-white shadow' : 'bg-white hover:brightness-95'}`}
+                  style={{ borderColor: g.colour, background: on ? g.colour : undefined }}
+                >
+                  {g.key !== 'all' && <span className="h-3 w-3 rounded-full border border-white/60" style={{ background: g.colour }} aria-hidden="true" />}
+                  {g.name}
+                  {g.ages && <span className={on ? 'text-white/85' : 'text-muted'}>· {yearsText(g.ages)}</span>}
+                </button>
+              );
+            })}
           </div>
           {!data ? (
             <p className="mt-8 animate-pulse text-muted">Loading the timetable…</p>
@@ -188,8 +203,11 @@ export function AcademyEnrol() {
                 <div key={wd} className="rounded-xl border border-line bg-white p-3">
                   <h3 className="mb-2 font-display text-xl font-bold uppercase">{WEEKDAYS[wd]}</h3>
                   <ul className="space-y-2">
+                    {data.sessions.filter((s) => s.weekday === wd && (show === 'all' || s.group_key === show)).length === 0 && (
+                      <li className="px-1 py-2 text-sm text-muted">No sessions</li>
+                    )}
                     {data.sessions
-                      .filter((s) => s.weekday === wd)
+                      .filter((s) => s.weekday === wd && (show === 'all' || s.group_key === show))
                       .map((s) => {
                         const g = groupOf(s.group_key)!;
                         const on = picked.includes(s.id);
@@ -204,7 +222,7 @@ export function AcademyEnrol() {
                             >
                               <span className="block text-sm font-semibold">{timeText(s.start_minutes)}–{timeText(s.end_minutes)}</span>
                               <span className="block text-sm">{g.name}</span>
-                              <span className="block text-xs text-muted">{g.ages} years</span>
+                              <span className="block text-xs text-muted">{yearsText(g.ages)}</span>
                               <span className={`mt-1 block text-xs font-semibold ${s.full ? 'text-danger' : s.places_left <= 3 ? 'text-warn' : 'text-success'}`}>{placesText(s)}</span>
                             </button>
                           </li>
@@ -323,7 +341,7 @@ export function AcademyEnrol() {
                         <label key={g.key} className={`flex cursor-pointer flex-col rounded-lg border-2 p-3 ${group === g.key ? '' : 'border-line'} ${fits ? '' : 'opacity-40'}`} style={group === g.key ? { borderColor: g.colour, background: `${g.colour}14` } : undefined}>
                           <input type="radio" name="group" className="sr-only" checked={group === g.key} onChange={() => chooseGroup(g.key)} />
                           <span className="font-semibold">{g.name}</span>
-                          <span className="text-sm text-muted">{g.ages} years</span>
+                          <span className="text-sm text-muted">{yearsText(g.ages)}</span>
                         </label>
                       );
                     })}

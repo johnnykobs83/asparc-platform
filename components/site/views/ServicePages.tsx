@@ -60,7 +60,10 @@ function Steps({ steps, dark = false }: { steps: [string, string][]; dark?: bool
 
 /* ---------------------------------------------------------------- */
 export function SportsPerformanceView({ site }: { site: PublicSiteData }) {
-  const services = site.services.filter((s) => s.category === 'performance');
+  const all = site.services.filter((s) => s.category === 'performance');
+  // Session pricing by group size (1-on-1 … 10+) is shown as its own table, not as service cards.
+  const tiers = all.filter((s) => s.slug.startsWith('training-'));
+  const services = all.filter((s) => !s.slug.startsWith('training-'));
   const featured = featuredServices(services);
   return (
     <>
@@ -75,7 +78,37 @@ export function SportsPerformanceView({ site }: { site: PublicSiteData }) {
         <SectionHeading eyebrow="What we offer" title="Performance services" intro="Programs are built around your sport, your training history and your goals. Where a price isn’t shown, it’s provided on enquiry while packages are finalised." />
         <ServiceGrid services={services} />
       </Section>
-      <Section tone="mist">
+      {tiers.length > 0 && (
+        <Section tone="mist" id="session-pricing" className="scroll-mt-24">
+          <SectionHeading eyebrow="Session pricing" title="1-on-1 or train together" intro="Every training session is 60 minutes with an ASPARC coach. The more athletes in the session, the lower the price per person." />
+          <div className="card overflow-hidden">
+            <table className="w-full text-left">
+              <caption className="sr-only">Training session prices by group size</caption>
+              <thead className="bg-charcoal text-sm uppercase tracking-wider text-white">
+                <tr>
+                  <th scope="col" className="px-6 py-3 font-display">Session</th>
+                  <th scope="col" className="px-6 py-3 text-right font-display">Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tiers.map((t) => (
+                  <tr key={t.id} className="border-b border-line last:border-0">
+                    <td className="px-6 py-4">
+                      <span className="font-display text-xl font-bold">{t.name.replace(/^Training session – /, '')}</span>
+                      {t.price_unit && <span className="block text-sm text-muted">{t.price_unit}</span>}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="block font-display text-2xl font-extrabold text-royal">{priceText({ ...t, price_unit: null }) ?? 'On enquiry'}</span>
+                      <PayLink s={t} className="mt-1 inline-block text-sm font-semibold text-royal underline underline-offset-2 hover:text-charcoal" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+      <Section>
         <SectionHeading eyebrow="How it works" title="A clear process" />
         <Steps
           steps={[
@@ -158,8 +191,7 @@ export function AcademyView({ site }: { site: PublicSiteData }) {
                 {/* Decorative: the heading below names the age group. */}
                 <img src={g.image} alt="" loading="lazy" width={800} height={1000} className={`absolute inset-0 h-full w-full object-cover ${g.position}`} />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-charcoal via-charcoal/70 to-transparent px-6 pb-5 pt-16 text-white">
-                  <p className="font-display text-5xl font-extrabold leading-none">{g.ages}</p>
-                  <p className="mt-1 text-xs uppercase tracking-widest text-white/75">years</p>
+                  <p className="font-display text-5xl font-extrabold leading-none">{g.ages} Years</p>
                 </div>
               </div>
               <div className="flex-1 p-6">
