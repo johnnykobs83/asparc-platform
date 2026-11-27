@@ -336,7 +336,7 @@ export const DEFAULT_KNOWLEDGE: SeedKb[] = [
     category: 'faq',
     title: 'How does the Football Performance Academy work?',
     content:
-      'The ASPARC Football Performance Academy starts in Term 1 2027 at Avenger Park. Sessions are 50 minutes, Monday to Saturday, with no more than 12 athletes per session, in three age groups: Foundation Movers (8–11), Athletic Development (11–13) and Performance Development (14–16). Families choose 1 or 2 sessions a week for a 10-week term, an annual package (one session a week, all four terms) or casual sessions. Parents enrol and choose session days on the Academy page: /performance-academy#enrol.',
+      'The ASPARC Football Performance Academy starts in Term 1 2027 at ASPARC, 104/12 Ormond Blvd, Bundoora. Sessions are 50 minutes, Monday to Saturday, with no more than 12 athletes per session, in three age groups: Foundation Movers (8–11), Athletic Development (11–13) and Performance Development (14–16). Families choose 1 or 2 sessions a week for a 10-week term, an annual package (one session a week, all four terms) or casual sessions. Parents enrol and choose session days on the Academy page: /performance-academy#enrol.',
     data: { keywords: ['academy', 'junior', 'kids', 'child', 'son', 'daughter', 'age group', 'program', 'term'] },
   }),
   kb({

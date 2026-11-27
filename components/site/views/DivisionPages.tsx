@@ -133,7 +133,7 @@ export function ClinicView({ site }: { site: PublicSiteData }) {
       <PageHero
         eyebrow="ASPARC Sports Performance Centre"
         title={<>Train. Rehab. <span className="text-sky">Recover.</span></>}
-        intro="Our centre at Avenger Park – 1-on-1 training, rehabilitation, remedial massage and performance testing for individual athletes."
+        intro="Our centre at 104/12 Ormond Blvd, Bundoora – 1-on-1 training, rehabilitation, remedial massage and performance testing for individual athletes."
         image={IMAGES.performance}
       >
         <Link href={site.onlineBooking ? '/book' : '/contact?form=booking'} className="btn-primary">{site.onlineBooking ? 'Book online' : 'Request a booking'}</Link>

@@ -90,7 +90,7 @@ describe('Football Performance Academy – enrolling', () => {
     assert.deepEqual(parentMail.to, ['pat@example.com']);
     assert.match(parentMail.text, /Foundation Movers \(8–11\)/);
     assert.match(parentMail.text, /Monday 4:30pm–5:20pm/);
-    assert.match(parentMail.text, /Starts Term 1 2027 at Avenger Park/);
+    assert.match(parentMail.text, /Starts Term 1 2027 at 104\/12 Ormond Blvd, Bundoora/);
     assert.ok(calls.map(mail).some((m) => /pre-visit form/.test(m.subject)), 'the health form goes out too');
     const n = (await db().list('notifications'))[0];
     assert.match(n.title, /New Academy enrolment: Alex Athlete – Foundation Movers/);

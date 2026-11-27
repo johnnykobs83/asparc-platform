@@ -5,7 +5,7 @@ import { getCachedPublicSiteData } from '@/lib/kb/cached';
 export const revalidate = 60;
 export const metadata: Metadata = {
   title: 'Football Performance Academy',
-  description: 'ASPARC Football Performance Academy – speed, strength, agility and athletic development for footballers aged 8–16 at Avenger Park, Melbourne. Now enrolling for Term 1 2027.',
+  description: 'ASPARC Football Performance Academy – speed, strength, agility and athletic development for footballers aged 8–16 at ASPARC in Bundoora, Melbourne. Now enrolling for Term 1 2027.',
 };
 
 export default async function Page() {

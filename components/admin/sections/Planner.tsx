@@ -1208,7 +1208,7 @@ function LocationDrawer({ initial, clients, onClose, onSaved }: { initial: Parti
     >
       <div>
         <label className="field-label" htmlFor="l-name">Name</label>
-        <input id="l-name" name="name" className="field" required minLength={2} defaultValue={initial.name ?? ''} placeholder="e.g. Avenger Park" />
+        <input id="l-name" name="name" className="field" required minLength={2} defaultValue={initial.name ?? ''} placeholder="e.g. ASPARC Bundoora" />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>

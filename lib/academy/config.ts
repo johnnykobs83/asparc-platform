@@ -8,7 +8,7 @@
 export const ACADEMY = {
   name: 'ASPARC Football Performance Academy',
   term: 'Term 1 2027',
-  venue: 'Avenger Park',
+  venue: '104/12 Ormond Blvd, Bundoora',
   capacity: 12,
   /** Show the launch announcement across the website. */
   announce: true,

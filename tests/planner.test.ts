@@ -40,7 +40,7 @@ async function setup() {
   const sam = (await post(staffPOST, '/api/admin/planner/staff', { full_name: 'Sam Coach', email: 'sam@example.com', role_title: 'S&C coach' })).body.staff;
   const pri = (await post(staffPOST, '/api/admin/planner/staff', { full_name: 'Priya Coach', email: 'priya@example.com' })).body.staff;
   const alex = (await post(staffPOST, '/api/admin/planner/staff', { full_name: 'Alex Therapist', employment_type: 'contractor', email: '' })).body.staff;
-  const home = (await post(locationPOST, '/api/admin/planner/locations', { name: 'ASPARC Parkville', kind: 'asparc', address: '476 Brunswick Rd, Parkville VIC', colour: '#14519C' })).body.location;
+  const home = (await post(locationPOST, '/api/admin/planner/locations', { name: 'ASPARC Bundoora', kind: 'asparc', address: '104/12 Ormond Blvd, Bundoora VIC 3083', colour: '#14519C' })).body.location;
   const ground = (await post(locationPOST, '/api/admin/planner/locations', { name: 'Club ground', kind: 'club', address: '1 Test St', access_notes: 'Gate code 1234', colour: '#0E8C7F' })).body.location;
   return { sam, pri, alex, home, ground };
 }
