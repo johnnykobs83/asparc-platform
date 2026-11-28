@@ -9,6 +9,7 @@ import type { Role } from '../db/types';
  *
  * Staff planner: everyone can see the week and their own jobs; owners and managers plan it.
  * Club billing (clubs, agreements, invoices, what each club spends): the OWNER only.
+ * Members area: everyone sees who has access; owners and managers add, invite and switch people off.
  * Client records: everyone sees contact details and history; health forms and client
  * notes need 'clients:health' (owner, manager) – or being the practitioner on that
  * client's booking, which lib/clients/service.ts checks.
@@ -31,6 +32,8 @@ export const PERMISSIONS = {
   'clients:health': ['owner', 'manager'],
   'planner:view': ['owner', 'manager', 'staff'],
   'planner:write': ['owner', 'manager'],
+  'members:view': ['owner', 'manager', 'staff'],
+  'members:manage': ['owner', 'manager'],
   'finance:manage': ['owner'],
   'users:manage': ['owner'],
   'data:delete': ['owner'],

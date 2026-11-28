@@ -632,6 +632,35 @@ export interface ClientInvoice {
   updated_at: Iso;
 }
 
+/** A person who can sign in to the Members area (/members). Never a staff account. */
+export interface Member {
+  id: Uuid;
+  email: string;
+  full_name: string;
+  club: string | null;
+  team: string | null;
+  /** A parent/guardian account for an under-18 player (athlete_name). */
+  is_guardian: boolean;
+  athlete_name: string | null;
+  access_hub: boolean;
+  access_warmup: boolean;
+  access_downloads: boolean;
+  /** Switched off by staff = no access, effective immediately. */
+  active: boolean;
+  password_hash: string | null;
+  password_set_at: Iso | null;
+  /** Id of the one link currently allowed to set the password. */
+  invite_nonce: string | null;
+  invite_expires_at: Iso | null;
+  invited_at: Iso | null;
+  invited_by: string | null;
+  last_login_at: Iso | null;
+  login_count: number;
+  notes: string | null;
+  created_at: Iso;
+  updated_at: Iso;
+}
+
 export interface Tables {
   customers: Customer;
   academy_sessions: AcademySession;
@@ -664,5 +693,6 @@ export interface Tables {
   clients: Client;
   client_agreements: ClientAgreement;
   client_invoices: ClientInvoice;
+  members: Member;
 }
 export type TableName = keyof Tables;

@@ -10,6 +10,7 @@ export const SECTIONS = [
   { key: 'clients', label: 'Clients', icon: 'M9 11a4 4 0 100-8 4 4 0 000 8zm-7 10a7 7 0 0114 0M17 11a3 3 0 100-6m2 16a6 6 0 00-3-5.2' },
   { key: 'conversations', label: 'Conversations', icon: 'M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z' },
   { key: 'leads', label: 'Leads', icon: 'M16 11a4 4 0 10-8 0 4 4 0 008 0zM4 21a8 8 0 0116 0' },
+  { key: 'members', label: 'Members & Resources', icon: 'M12 3l7 3v5c0 4.4-3 8.4-7 10-4-1.6-7-5.6-7-10V6l7-3zm-3 9l2 2 4-4' },
   { key: 'academy', label: 'Academy', icon: 'M12 3l9 5-9 5-9-5 9-5zm-6 8v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5' },
   { key: 'revenue', label: 'Revenue', icon: 'M12 3v18m4-14H10a3 3 0 000 6h4a3 3 0 010 6H7' },
   { key: 'billing', label: 'Club Billing', icon: 'M3 7h18v12H3V7zm5-3h8v3H8V4zm-5 8h18', permission: 'finance:manage' },

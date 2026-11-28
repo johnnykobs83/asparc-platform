@@ -81,6 +81,7 @@ export function Footer({ site }: { site: PublicSiteData }) {
             {LEGAL.map((l) => (
               <li key={l.href}><Link href={l.href} className="hover:text-white">{l.label}</Link></li>
             ))}
+            <li><Link href="/members/login" className="hover:text-white">Member login</Link></li>
             <li><Link href="/admin" className="hover:text-white">Staff login</Link></li>
           </ul>
         </div>

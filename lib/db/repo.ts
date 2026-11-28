@@ -158,6 +158,10 @@ export const DEFAULTS: { [K in TableName]?: Partial<Tables[K]> } = {
   client_agreements: { agreed_value_cents: null, end_date: null, payment_terms_days: 14, inclusions: null, status: 'active' },
   client_invoices: { agreement_id: null, gst_cents: 0, amount_paid_cents: 0, paid_on: null, method: null, status: 'open', stripe_invoice_id: null, hosted_invoice_url: null, notes: null },
   appointments: { service_id: null, status: 'confirmed', notes: null, cancel_reason: null, source: 'website', price_cents: null, final_price_cents: null, price_note: null, series_id: null },
+  members: {
+    club: null, team: null, is_guardian: false, athlete_name: null, access_hub: true, access_warmup: true, access_downloads: true, active: true,
+    password_hash: null, password_set_at: null, invite_nonce: null, invite_expires_at: null, invited_at: null, invited_by: null, last_login_at: null, login_count: 0, notes: null,
+  },
 };
 
 /** Tables with an updated_at column. */
@@ -183,4 +187,5 @@ export const HAS_UPDATED_AT: ReadonlySet<TableName> = new Set<TableName>([
   'intake_forms',
   'academy_sessions',
   'academy_enrolments',
+  'members',
 ]);

@@ -14,6 +14,7 @@ import { MyWeekSection, PlannerSection } from './sections/Planner';
 import { BillingSection } from './sections/Billing';
 import { FootballAcademySection } from './sections/FootballAcademy';
 import { ClientsSection } from './sections/Clients';
+import { MembersSection } from './sections/Members';
 import { IntegrationsSection, NotificationsSection, ReportsSection, RevenueSection, SettingsSection } from './sections/System';
 
 export interface Me {
@@ -43,6 +44,7 @@ export function AdminApp({ section }: { section: string }) {
       case 'conversations': return <ConversationsSection can={can} />;
       case 'leads': return <LeadsSection can={can} />;
       case 'bookings': return <BookingsSection can={can} />;
+      case 'members': return can('members:view') ? <MembersSection can={can} /> : <NoAccess />;
       case 'academy': return (<><FootballAcademySection can={can} /><AcademySection can={can} /></>);
       case 'revenue': return can('revenue:view') ? <RevenueSection /> : <NoAccess />;
       case 'knowledge-base': return <KnowledgeSection can={can} />;
