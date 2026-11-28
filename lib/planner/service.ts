@@ -517,6 +517,44 @@ export async function updateStaff(id: string, patch: z.infer<typeof StaffPatch>)
   return updated;
 }
 
+/**
+ * Delete a staff member who has never been rostered. Anyone on a job (now or in the
+ * past) can't be deleted – that would erase their shift history – so the answer tells
+ * the planner to untick "Active" instead, which hides them and keeps the record.
+ */
+export async function deleteStaff(id: string) {
+  const repo = db();
+  const staff = await repo.get('staff_members', id);
+  if (!staff) throw new HttpError(404, 'Staff member not found');
+  const shifts = (await repo.list('planner_assignments', { eq: { staff_id: id }, limit: 5000 })).length;
+  const covering = (await repo.list('planner_assignments', { eq: { covering_for_staff_id: id }, limit: 5000 })).length;
+  if (shifts) {
+    throw new HttpError(409, `${staff.full_name} is on ${shifts} job${shifts === 1 ? '' : 's'} in the planner, so deleting would erase their shift history. Untick “Active” to hide them from the planner instead.`);
+  }
+  // Nothing rostered: tidy up what hangs off them, then delete.
+  if (covering) for (const a of await repo.list('planner_assignments', { eq: { covering_for_staff_id: id }, limit: 5000 })) await repo.update('planner_assignments', a.id, { covering_for_staff_id: null });
+  for (const t of ['staff_leave', 'staff_reminders', 'planner_changes'] as const) for (const r of await repo.list(t, { eq: { staff_id: id }, limit: 5000 })) await repo.remove(t, r.id);
+  for (const p of await repo.list('practitioners', { eq: { staff_member_id: id }, limit: 100 })) await repo.update('practitioners', p.id, { staff_member_id: null });
+  await repo.remove('staff_members', id);
+  return { deleted: staff.full_name };
+}
+
+/**
+ * Delete a place that no job uses. A place with jobs on it can't go (the jobs need it),
+ * so the answer suggests unticking "In use", which hides it from the planner.
+ */
+export async function deleteLocation(id: string) {
+  const repo = db();
+  const loc = await repo.get('work_locations', id);
+  if (!loc) throw new HttpError(404, 'Place not found');
+  const jobs = (await repo.list('planner_jobs', { eq: { location_id: id }, limit: 5000 })).length;
+  if (jobs) {
+    throw new HttpError(409, `${loc.name} has ${jobs} job${jobs === 1 ? '' : 's'} on the planner, so it can't be deleted. Move those jobs to another place first, or untick “In use” to hide it instead.`);
+  }
+  await repo.remove('work_locations', id);
+  return { deleted: loc.name };
+}
+
 export async function addLeave(input: z.infer<typeof LeaveInput>) {
   if (!(await db().get('staff_members', input.staff_id))) throw new HttpError(422, 'Staff member not found');
   return db().insert('staff_leave', input);

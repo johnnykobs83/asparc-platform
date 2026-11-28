@@ -1077,18 +1077,58 @@ function PeopleAndPlaces({ week, reload, toast }: { week: Week; reload: () => Pr
   );
 }
 
-function FormDrawer({ title, onClose, onSubmit, busy, err, children, submitLabel }: { title: string; onClose: () => void; onSubmit: (e: FormEvent<HTMLFormElement>) => void; busy: boolean; err: string | null; children: ReactNode; submitLabel: string }) {
+function FormDrawer({ title, onClose, onSubmit, busy, err, children, submitLabel, extra }: { title: string; onClose: () => void; onSubmit: (e: FormEvent<HTMLFormElement>) => void; busy: boolean; err: string | null; children: ReactNode; submitLabel: string; extra?: ReactNode }) {
   return (
     <Drawer open onClose={onClose} title={title}>
       <form onSubmit={onSubmit} className="space-y-4">
         {children}
         {err && <ErrorNote message={err} />}
-        <div className="flex justify-end gap-2 border-t border-line pt-4">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
+          {extra && <div className="mr-auto">{extra}</div>}
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button type="submit" disabled={busy}>{busy ? 'Saving…' : submitLabel}</Button>
         </div>
       </form>
     </Drawer>
+  );
+}
+
+/**
+ * "Delete" with a second click to confirm. The server refuses (with a reason) when the
+ * record is still in use, e.g. a place with jobs on it – that reason is shown here.
+ */
+function DeleteControl({ url, what, onDeleted }: { url: string; what: string; onDeleted: (msg: string) => void }) {
+  const [sure, setSure] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [why, setWhy] = useState<string | null>(null);
+  async function go() {
+    if (!sure) return setSure(true);
+    setBusy(true);
+    setWhy(null);
+    try {
+      await api(url, { method: 'DELETE' });
+      onDeleted(`${what} deleted`);
+    } catch (e) {
+      setWhy(e instanceof Error ? e.message : 'Could not delete');
+      setSure(false);
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="max-w-xs">
+      <div className="flex items-center gap-2">
+        <Button variant="danger" size="sm" onClick={go} disabled={busy}>
+          {busy ? 'Deleting…' : sure ? 'Yes, delete for good' : 'Delete'}
+        </Button>
+        {sure && !busy && (
+          <button type="button" className="text-xs text-muted underline" onClick={() => setSure(false)}>
+            Keep
+          </button>
+        )}
+      </div>
+      {sure && !busy && <p className="mt-1 text-xs text-muted">This can&apos;t be undone.</p>}
+      {why && <p className="mt-1 text-xs text-danger" role="alert">{why}</p>}
+    </div>
   );
 }
 
@@ -1119,6 +1159,7 @@ function StaffDrawer({ initial, logins, staff, onClose, onSaved }: { initial: Pa
       busy={busy}
       err={err}
       submitLabel={initial.id ? 'Save' : 'Add'}
+      extra={initial.id ? <DeleteControl url={`/api/admin/planner/staff/${initial.id}`} what={initial.full_name ?? 'Staff member'} onDeleted={onSaved} /> : undefined}
       onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
@@ -1195,6 +1236,7 @@ function LocationDrawer({ initial, clients, onClose, onSaved }: { initial: Parti
       busy={busy}
       err={err}
       submitLabel={initial.id ? 'Save' : 'Add'}
+      extra={initial.id ? <DeleteControl url={`/api/admin/planner/locations/${initial.id}`} what={initial.name ?? 'Place'} onDeleted={onSaved} /> : undefined}
       onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);

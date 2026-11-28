@@ -9,7 +9,8 @@ import { POST as leavePOST } from '../app/api/admin/planner/leave/route';
 import { POST as locationPOST } from '../app/api/admin/planner/locations/route';
 import { GET as myWeekGET, POST as myWeekPOST } from '../app/api/admin/planner/my-week/route';
 import { POST as publishPOST } from '../app/api/admin/planner/publish/route';
-import { PATCH as staffPATCH } from '../app/api/admin/planner/staff/[id]/route';
+import { PATCH as staffPATCH, DELETE as staffDELETE } from '../app/api/admin/planner/staff/[id]/route';
+import { DELETE as locationDELETE } from '../app/api/admin/planner/locations/[id]/route';
 import { GET as staffGET, POST as staffPOST } from '../app/api/admin/planner/staff/route';
 import { GET as weekGET } from '../app/api/admin/planner/week/route';
 import { GET as confirmGET, POST as confirmPOST } from '../app/api/planner/confirm/[token]/route';
@@ -67,6 +68,30 @@ describe('Staff planner – planning a week', () => {
     const planner = await getWeek('owner');
     assert.equal(planner.body.can_plan, true);
     assert.ok(planner.body.staff.every((s: Record<string, unknown>) => s.calendar_token === undefined), 'calendar secrets never go out in the week view');
+  });
+
+  it('deletes staff and places only while nothing on the planner uses them', async () => {
+    const { sam, alex, home, ground } = await setup();
+    await addJob({ location_id: ground.id, date: day(0), start_minutes: 390, end_minutes: 480, staff: [{ staff_id: sam.id }] });
+    const del = async (fn: typeof staffDELETE, path: string, id: string, role: Role = 'owner') => json(await fn(req(path, { method: 'DELETE', cookie: await adminCookie(role) }), ctx(id)));
+
+    // Staff can't delete; managers can.
+    assert.equal((await del(staffDELETE, `/api/admin/planner/staff/${alex.id}`, alex.id, 'staff')).status, 403);
+    // Rostered staff and a place with jobs are kept, with the reason and the alternative.
+    const busy = await del(staffDELETE, `/api/admin/planner/staff/${sam.id}`, sam.id);
+    assert.equal(busy.status, 409);
+    assert.match(busy.body.error, /on 1 job .*Untick “Active”/);
+    const used = await del(locationDELETE, `/api/admin/planner/locations/${ground.id}`, ground.id);
+    assert.equal(used.status, 409);
+    assert.match(used.body.error, /has 1 job .*In use/);
+    // Unused ones go, along with their leave.
+    await post(leavePOST, '/api/admin/planner/leave', { staff_id: alex.id, start_date: day(2), end_date: day(3) });
+    assert.equal((await del(staffDELETE, `/api/admin/planner/staff/${alex.id}`, alex.id, 'manager')).status, 200);
+    assert.ok(!(await db().get('staff_members', alex.id)));
+    assert.equal((await db().list('staff_leave', { eq: { staff_id: alex.id } })).length, 0);
+    assert.equal((await del(locationDELETE, `/api/admin/planner/locations/${home.id}`, home.id)).status, 200);
+    assert.ok(!(await db().get('work_locations', home.id)));
+    assert.equal((await del(locationDELETE, `/api/admin/planner/locations/${home.id}`, home.id)).status, 404);
   });
 
   it('stores Melbourne local times correctly across daylight saving', async () => {
